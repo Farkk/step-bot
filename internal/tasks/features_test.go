@@ -18,6 +18,15 @@ func TestRatingWindowAndComment(t *testing.T) {
 	}
 }
 
+func TestConfirmRequiresRating(t *testing.T) {
+	if validConfirmation("confirm", 0, "") || validConfirmation("confirm", 5, "   ") {
+		t.Fatal("confirmation without a rating and comment must fail")
+	}
+	if !validConfirmation("confirm", 5, "Отличная работа") || !validConfirmation("pause", 0, "") {
+		t.Fatal("valid confirmation and unrelated actions must pass")
+	}
+}
+
 func TestDynamicFields(t *testing.T) {
 	defs := []FieldDefinition{{Key: "volume", Type: "number", Required: true}, {Key: "service", Type: "select", Options: []string{"Сборка", "Разборка"}}}
 	if err := validateFields(defs, map[string]any{"volume": float64(2), "service": "Сборка"}); err != nil {

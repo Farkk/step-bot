@@ -591,15 +591,21 @@ func (h Handler) adminStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		Action string `json:"action"`
-		Reason string `json:"reason"`
+		Action  string `json:"action"`
+		Reason  string `json:"reason"`
+		Score   int    `json:"score"`
+		Comment string `json:"comment"`
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 2048)
+	r.Body = http.MaxBytesReader(w, r.Body, 8192)
 	if json.NewDecoder(r.Body).Decode(&input) != nil || (input.Action != "pause" && input.Action != "resume" && input.Action != "confirm" && input.Action != "cancel") {
 		http.Error(w, "Некорректное действие", 400)
 		return
 	}
 	input.Reason = strings.TrimSpace(input.Reason)
+	if !validConfirmation(input.Action, input.Score, input.Comment) {
+		http.Error(w, "Укажите 1–5 звёзд и комментарий перед завершением", 400)
+		return
+	}
 	if input.Action == "cancel" && (len([]rune(input.Reason)) < 3 || len([]rune(input.Reason)) > 500) {
 		http.Error(w, "Укажите причину отмены", 400)
 		return
@@ -634,6 +640,12 @@ func (h Handler) adminStatus(w http.ResponseWriter, r *http.Request) {
 			}
 			return ""
 		}(), m.ID)
+	}
+	if err == nil && input.Action == "confirm" {
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO task_ratings(task_id,score,comment,author_member_id) VALUES($1,$2,$3,$4)`, id, input.Score, strings.TrimSpace(input.Comment), m.ID)
+		if err == nil {
+			_, err = tx.ExecContext(r.Context(), `INSERT INTO task_events(task_id,kind,actor_member_id) VALUES($1,'rating_created',$2)`, id, m.ID)
+		}
 	}
 	if err == nil && assignee.Valid {
 		err = enqueue(r.Context(), tx, id, assignee.Int64, next, title)

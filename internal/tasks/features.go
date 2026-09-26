@@ -22,6 +22,8 @@ func (h Handler) featureRoutes(m *http.ServeMux) {
 	m.HandleFunc("PUT /api/v1/admin/tasks/{id}/rating", h.putRating)
 	m.HandleFunc("GET /api/v1/worker/reputation", h.reputation)
 	m.HandleFunc("GET /api/v1/admin/analytics", h.analytics)
+	m.HandleFunc("GET /api/v1/admin/analytics/trend", h.analyticsTrend)
+	m.HandleFunc("GET /api/v1/admin/applications", h.allApplications)
 	m.HandleFunc("GET /api/v1/admin/analytics.csv", h.analyticsCSV)
 	m.HandleFunc("POST /api/v1/admin/tasks/{id}/attachments", h.uploadAttachment)
 	m.HandleFunc("GET /api/v1/admin/tasks/{id}/attachments", h.attachments)
@@ -157,6 +159,10 @@ type rating struct {
 	CompletedAt   time.Time  `json:"completedAt"`
 	EditableUntil time.Time  `json:"editableUntil"`
 	UpdatedAt     *time.Time `json:"updatedAt,omitempty"`
+}
+
+func validConfirmation(action string, score int, comment string) bool {
+	return action != "confirm" || validRating(score, comment)
 }
 
 func (h Handler) ratingState(w http.ResponseWriter, r *http.Request, m admin.Member) (int64, rating, bool) {
@@ -317,6 +323,92 @@ func (h Handler) analytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, v)
+}
+
+type trendPoint struct {
+	From          string  `json:"from"`
+	To            string  `json:"to"`
+	AverageRating float64 `json:"averageRating"`
+	RatingCount   int     `json:"ratingCount"`
+	ReactionHours float64 `json:"reactionHours"`
+	ReactionCount int     `json:"reactionCount"`
+	Completed     int     `json:"completed"`
+}
+
+func (h Handler) analyticsTrend(w http.ResponseWriter, r *http.Request) {
+	m, ok := h.Admin.Authorize(w, r, false)
+	if !ok {
+		return
+	}
+	from, to, err := period(r)
+	if err != nil {
+		http.Error(w, "Проверьте период", 400)
+		return
+	}
+	days := int(to.Sub(from) / (24 * time.Hour))
+	buckets := min(7, days)
+	if buckets < 1 {
+		buckets = 1
+	}
+	points := make([]trendPoint, 0, buckets)
+	for i := 0; i < buckets; i++ {
+		start := from.AddDate(0, 0, i*days/buckets)
+		end := from.AddDate(0, 0, (i+1)*days/buckets)
+		p := trendPoint{From: start.Format("02.01"), To: end.Add(-time.Nanosecond).Format("02.01")}
+		err = h.DB.QueryRowContext(r.Context(), `SELECT COALESCE(avg(tr.score),0),count(tr.task_id) FROM task_ratings tr JOIN tasks t ON t.id=tr.task_id WHERE t.company_id=$1 AND t.completed_at>=$2 AND t.completed_at<$3`, m.CompanyID, start, end).Scan(&p.AverageRating, &p.RatingCount)
+		if err == nil {
+			err = h.DB.QueryRowContext(r.Context(), `SELECT count(*) FROM tasks WHERE company_id=$1 AND completed_at>=$2 AND completed_at<$3 AND status='completed'`, m.CompanyID, start, end).Scan(&p.Completed)
+		}
+		if err == nil {
+			err = h.DB.QueryRowContext(r.Context(), `SELECT COALESCE(avg(extract(epoch FROM decision.created_at-first_app.created_at)/3600),0),count(*) FROM tasks t JOIN LATERAL (SELECT min(created_at) created_at FROM task_events WHERE task_id=t.id AND kind='application_created') first_app ON first_app.created_at IS NOT NULL JOIN LATERAL (SELECT min(created_at) created_at FROM task_events WHERE task_id=t.id AND kind IN ('application_accepted','application_rejected')) decision ON decision.created_at IS NOT NULL WHERE t.company_id=$1 AND decision.created_at>=$2 AND decision.created_at<$3`, m.CompanyID, start, end).Scan(&p.ReactionHours, &p.ReactionCount)
+		}
+		if err != nil {
+			http.Error(w, "Ошибка базы", 500)
+			return
+		}
+		points = append(points, p)
+	}
+	respond(w, points)
+}
+
+type companyApplication struct {
+	ID         int64     `json:"id"`
+	TaskID     int64     `json:"taskId"`
+	TaskTitle  string    `json:"taskTitle"`
+	TaskStatus string    `json:"taskStatus"`
+	Name       string    `json:"name"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"createdAt"`
+	Rating     float64   `json:"rating"`
+	Ratings    int       `json:"ratings"`
+	Completed  int       `json:"completed"`
+}
+
+func (h Handler) allApplications(w http.ResponseWriter, r *http.Request) {
+	m, ok := h.Admin.Authorize(w, r, false)
+	if !ok {
+		return
+	}
+	rows, err := h.DB.QueryContext(r.Context(), `SELECT a.id,t.id,t.title,t.status,COALESCE(NULLIF(mi.display_name,''),u.full_name),a.status,a.created_at,COALESCE((SELECT avg(tr.score) FROM task_ratings tr JOIN tasks done ON done.id=tr.task_id WHERE done.assigned_user_id=a.user_id),0),(SELECT count(*) FROM task_ratings tr JOIN tasks done ON done.id=tr.task_id WHERE done.assigned_user_id=a.user_id),(SELECT count(*) FROM tasks done WHERE done.assigned_user_id=a.user_id AND done.status='completed') FROM applications a JOIN tasks t ON t.id=a.task_id JOIN users u ON u.id=a.user_id LEFT JOIN max_identities mi ON mi.user_id=u.id WHERE t.company_id=$1 ORDER BY a.created_at DESC`, m.CompanyID)
+	if err != nil {
+		http.Error(w, "Ошибка базы", 500)
+		return
+	}
+	defer rows.Close()
+	items := []companyApplication{}
+	for rows.Next() {
+		var a companyApplication
+		if err = rows.Scan(&a.ID, &a.TaskID, &a.TaskTitle, &a.TaskStatus, &a.Name, &a.Status, &a.CreatedAt, &a.Rating, &a.Ratings, &a.Completed); err != nil {
+			http.Error(w, "Ошибка базы", 500)
+			return
+		}
+		items = append(items, a)
+	}
+	if rows.Err() != nil {
+		http.Error(w, "Ошибка базы", 500)
+		return
+	}
+	respond(w, items)
 }
 func (h Handler) analyticsCSV(w http.ResponseWriter, r *http.Request) {
 	m, ok := h.Admin.Authorize(w, r, false)
