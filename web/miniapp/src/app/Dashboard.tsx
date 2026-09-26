@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { SavedProfile } from '../features/profile/api'
+import { taskIdFromLaunch } from '../features/profile/launch'
 
 type Tab = 'tasks' | 'order' | 'profile'
 type IconName = 'list' | 'briefcase' | 'user' | 'bell' | 'arrow' | 'back' | 'pin' | 'clock' | 'wallet' | 'spark' | 'check'
@@ -22,7 +23,7 @@ type DemoTask = {
 }
 
 type ApiTask = { id: number; company: string; title: string; category: string; description: string; budget: number; deadline: string; location: string; myApplication: string; fields?: Record<string,unknown>; fieldSchema?: {key:string;label:string}[]; latitude?: number; longitude?: number }
-type Attachment = { id: number; filename: string }
+type Attachment = { id: number; filename: string; contentType: string }
 type Reputation = { acceptedPercent: number; averageRating: number; ratings: number; completed: number }
 type Notification = { id: number; taskId: number; title: string; kind: string; createdAt: string }
 const notificationLabels: Record<string, string> = { published: 'Новая заявка', application_accepted: 'Ваш отклик принят', application_rejected: 'Ваш отклик отклонён', application_rejected_auto: 'Выбран другой исполнитель', in_progress: 'Заказ в работе', paused: 'Заказ приостановлен', awaiting_confirmation: 'Работа отправлена на подтверждение', completed: 'Заказ завершён', cancelled: 'Заказ отменён', rating_created: 'Получена оценка', rating_updated: 'Оценка изменена' }
@@ -58,37 +59,48 @@ function TaskCard({ task, onOpen }: { task: DemoTask; onOpen: () => void }) {
 export function Dashboard({ profile, onEditProfile, initData }: { profile: SavedProfile; onEditProfile: () => void; initData: string }) {
   const [tasks, setTasks] = useState<DemoTask[]>([])
   const [orders, setOrders] = useState<(ApiTask & { status: string })[]>([])
+  const [tasksLoaded, setTasksLoaded] = useState(false)
+  const [ordersLoaded, setOrdersLoaded] = useState(false)
   const [taskError, setTaskError] = useState('')
   const [downloadNotice, setDownloadNotice] = useState('')
   const [reputation, setReputation] = useState<Reputation | null>(null)
   const [attachments, setAttachments] = useState<Attachment[]>([])
+  const attachmentRequest = useRef(0)
+  const [photoUrls, setPhotoUrls] = useState<Record<number,string>>({})
+  const [previewPhoto, setPreviewPhoto] = useState<Attachment | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [notificationError, setNotificationError] = useState('')
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
   const [confirmOrderId, setConfirmOrderId] = useState<number | null>(null)
   const [lastSeenNotification, setLastSeenNotification] = useState<number>(() => Number(localStorage.getItem('step-last-notification') || 0))
   const [applying, setApplying] = useState(false)
-  const loadTasks = () => fetch('/api/v1/worker/tasks', { headers: { 'X-Max-Init-Data': initData } }).then(async response => { if (!response.ok) throw new Error(response.status===401?'Сессия MAX истекла. Откройте приложение снова.':'Не удалось загрузить заявки'); return response.json() as Promise<ApiTask[]> }).then(items => { const displayed=items.map(displayTask); setTasks(displayed); setSelectedTask(current=>current?displayed.find(item=>item.id===current.id)||null:null); setTaskError('') }).catch(error => setTaskError(error.message))
-  const loadOrders = () => fetch('/api/v1/worker/orders', { headers: { 'X-Max-Init-Data': initData } }).then(async response => { if (!response.ok) throw new Error('Не удалось загрузить заказы'); return response.json() as Promise<(ApiTask & { status: string })[]> }).then(setOrders).catch(error => setTaskError(error.message))
+  const loadTasks = () => fetch('/api/v1/worker/tasks', { headers: { 'X-Max-Init-Data': initData } }).then(async response => { if (!response.ok) throw new Error(response.status===401?'Сессия MAX истекла. Откройте приложение снова.':'Не удалось загрузить заявки'); return response.json() as Promise<ApiTask[]> }).then(items => { const displayed=items.map(displayTask); setTasks(displayed); setTasksLoaded(true); setSelectedTask(current=>current?displayed.find(item=>item.id===current.id)||null:null); setTaskError('') }).catch(error => setTaskError(error.message))
+  const loadOrders = () => fetch('/api/v1/worker/orders', { headers: { 'X-Max-Init-Data': initData } }).then(async response => { if (!response.ok) throw new Error('Не удалось загрузить заказы'); return response.json() as Promise<(ApiTask & { status: string })[]> }).then(items=>{setOrders(items);setOrdersLoaded(true)}).catch(error => setTaskError(error.message))
   const loadReputation = () => fetch('/api/v1/worker/reputation',{headers:{'X-Max-Init-Data':initData}}).then(async response=>{if(!response.ok)throw new Error('Не удалось загрузить репутацию');return response.json() as Promise<Reputation>}).then(setReputation).catch(error=>setTaskError(error.message))
   const loadNotifications = () => fetch('/api/v1/worker/notifications',{headers:{'X-Max-Init-Data':initData}}).then(async response=>{if(!response.ok)throw new Error('Не удалось загрузить уведомления');return response.json() as Promise<Notification[]>}).then(items=>{setNotifications(items);setNotificationError('')}).catch(error=>setNotificationError(error.message))
   useEffect(() => { const refresh = () => { if (!document.hidden) { void loadTasks(); void loadOrders(); void loadReputation(); void loadNotifications() } }; refresh(); const timer = window.setInterval(refresh, 10000); document.addEventListener('visibilitychange', refresh); window.addEventListener('focus', refresh); return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', refresh); window.removeEventListener('focus', refresh) } }, [initData])
-  async function loadAttachments(id:string){try{const response=await fetch(`/api/v1/worker/tasks/${id}/attachments`,{headers:{'X-Max-Init-Data':initData}});if(!response.ok)throw new Error('Не удалось загрузить файлы');setAttachments(await response.json())}catch(error){setTaskError(error instanceof Error?error.message:'Ошибка файлов')}}
+  async function loadAttachments(id:string){const requestId=++attachmentRequest.current;try{const response=await fetch(`/api/v1/worker/tasks/${id}/attachments`,{headers:{'X-Max-Init-Data':initData}});if(!response.ok)throw new Error('Не удалось загрузить файлы');const files=await response.json() as Attachment[];if(requestId===attachmentRequest.current)setAttachments(files)}catch(error){if(requestId===attachmentRequest.current)setTaskError(error instanceof Error?error.message:'Ошибка файлов')}}
+  useEffect(()=>{let cancelled=false;const urls:string[]=[];setPhotoUrls({});void Promise.all(attachments.filter(file=>file.contentType.startsWith('image/')).map(async file=>{try{const response=await fetch(`/api/v1/attachments/${file.id}`,{headers:{'X-Max-Init-Data':initData}});if(!response.ok)throw new Error();const url=URL.createObjectURL(await response.blob());urls.push(url);if(!cancelled)setPhotoUrls(current=>({...current,[file.id]:url}))}catch{if(!cancelled)setTaskError('Не удалось открыть фото')}}));return()=>{cancelled=true;urls.forEach(URL.revokeObjectURL)}},[attachments,initData])
+  useEffect(()=>{if(!previewPhoto)return;const close=(event:KeyboardEvent)=>{if(event.key==='Escape')setPreviewPhoto(null)};document.addEventListener('keydown',close);return()=>document.removeEventListener('keydown',close)},[previewPhoto])
+  function attachmentSection(){return attachments.length>0&&<section className="detail-section"><h2>Вложения</h2>{downloadNotice&&<p role="status">{downloadNotice}</p>}<div className="attachment-list">{attachments.map(file=>file.contentType.startsWith('image/')?<div className="photo-item" key={file.id}><button type="button" className="photo-preview" onClick={()=>setPreviewPhoto(file)} disabled={!photoUrls[file.id]}>{photoUrls[file.id]?<img src={photoUrls[file.id]} alt={file.filename}/>:<span>Загружаем фото…</span>}</button><button type="button" className="secondary attachment-download" onClick={()=>downloadAttachment(file)}>Сохранить фото</button></div>:<button key={file.id} type="button" className="secondary attachment-download" onClick={()=>downloadAttachment(file)}>Скачать {file.filename}</button>)}</div></section>}
   async function downloadAttachment(file:Attachment){setDownloadNotice('');setTaskError('');try{const response=await fetch(`/api/v1/attachments/${file.id}`,{headers:{'X-Max-Init-Data':initData}});if(!response.ok)throw new Error('Не удалось скачать файл');const blob=await response.blob();const navigatorWithShare=navigator as Navigator & {canShare?:(data:{files:File[]})=>boolean;share?:(data:{files:File[]})=>Promise<void>};const sharedFile=new File([blob],file.filename,{type:blob.type||'application/octet-stream'});if(navigatorWithShare.canShare?.({files:[sharedFile]})){await navigatorWithShare.share?.({files:[sharedFile]});setDownloadNotice(`Файл «${file.filename}» передан в меню сохранения`);return}const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=file.filename;document.body.appendChild(link);link.click();link.remove();window.setTimeout(()=>URL.revokeObjectURL(url),60000);setDownloadNotice(`Скачивание файла «${file.filename}» началось`)}catch(error){setTaskError(error instanceof Error?error.message:'Ошибка файла')}}
   async function changeOrder(order: ApiTask, action: 'start' | 'complete') { setApplying(true); setTaskError(''); try { const response = await fetch(`/api/v1/worker/orders/${order.id}/status`, { method: 'POST', headers: { 'X-Max-Init-Data': initData, 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) }); if (!response.ok) throw new Error(response.status===409?'Статус заказа уже изменился. Обновите данные.':'Не удалось обновить заказ'); await loadOrders(); await loadNotifications(); setConfirmOrderId(null) } catch (error) { setTaskError(error instanceof Error ? error.message : 'Не удалось обновить заказ') } finally { setApplying(false) } }
   async function apply() { if (!selectedTask || selectedTask.myApplication) return; setApplying(true); setTaskError(''); try { const response = await fetch(`/api/v1/worker/tasks/${selectedTask.id}/applications`, { method: 'POST', headers: { 'X-Max-Init-Data': initData } }); if (!response.ok) throw new Error(response.status === 409 ? 'Вы уже откликнулись или заявка закрыта' : 'Не удалось отправить отклик'); setSelectedTask({ ...selectedTask, myApplication: 'pending' }); await loadTasks() } catch (error) { setTaskError(error instanceof Error ? error.message : 'Не удалось отправить отклик') } finally { setApplying(false) } }
   const [tab, setTab] = useState<Tab>('tasks')
   const [selectedTask, setSelectedTask] = useState<DemoTask | null>(null)
+  const [startTaskId] = useState(()=>taskIdFromLaunch(initData,window.location.search))
+  const [startHandled, setStartHandled] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [profileList, setProfileList] = useState<'active' | 'archive'>('active')
   const selectedOrder = orders.find(order => order.id === selectedOrderId)
+  useEffect(()=>{if(!startTaskId||startHandled)return;const order=orders.find(item=>String(item.id)===startTaskId);if(order){setTab('order');openOrder(order);setStartHandled(true);return}const task=tasks.find(item=>item.id===startTaskId);if(task){setTab('tasks');setSelectedTask(task);setAttachments([]);void loadAttachments(task.id);setStartHandled(true);return}if(tasksLoaded&&ordersLoaded){setTaskError('Заявка недоступна');setStartHandled(true)}},[startTaskId,startHandled,tasks,orders,tasksLoaded,ordersLoaded])
   const unreadCount = notifications.filter(item => item.id > lastSeenNotification).length
   useEffect(()=>{if(showNotifications&&notifications.length&&notifications[0].id>lastSeenNotification){setLastSeenNotification(notifications[0].id);localStorage.setItem('step-last-notification',String(notifications[0].id))}},[showNotifications,notifications,lastSeenNotification])
   const firstName = profile.fullName.trim().split(/\s+/)[0]
 
   useLayoutEffect(() => { window.scrollTo(0, 0) }, [tab, selectedTask, selectedOrderId, showNotifications])
 
-  function navigate(next: Tab) { setTab(next); setSelectedTask(null); setSelectedOrderId(null); setShowNotifications(false) }
+  function navigate(next: Tab) { attachmentRequest.current++;setAttachments([]);setTab(next); setSelectedTask(null); setSelectedOrderId(null); setShowNotifications(false) }
   function openNotifications() { if (!showNotifications) { const latest = notifications[0]?.id || 0; setLastSeenNotification(latest); localStorage.setItem('step-last-notification', String(latest)); void loadNotifications() } setShowNotifications(value => !value); setSelectedTask(null); setSelectedOrderId(null) }
   function openOrder(order: ApiTask) { setSelectedOrderId(order.id); setAttachments([]); void loadAttachments(String(order.id)) }
 
@@ -109,7 +121,7 @@ export function Dashboard({ profile, onEditProfile, initData }: { profile: Saved
         <div className="detail-price"><span>Вознаграждение</span><strong>{selectedOrder.budget.toLocaleString('ru-RU')} ₽</strong></div>
         <section className="detail-section"><h2>О заказе</h2><p>{selectedOrder.description}</p>{Object.entries(selectedOrder.fields||{}).map(([key,value])=><p key={key}>{selectedOrder.fieldSchema?.find(def=>def.key===key)?.label||key}: {String(value)}</p>)}</section>
         <section className="detail-section"><h2>Условия</h2><div className="detail-facts"><div><Icon name="clock" size={20}/><span><small>Начало работ</small>{new Date(selectedOrder.deadline).toLocaleString('ru-RU')}</span></div><div><Icon name="pin" size={20}/><span><small>Место</small>{selectedOrder.location||'Не указано'}</span></div><div><Icon name="user" size={20}/><span><small>Заказчик</small>{selectedOrder.company}</span></div></div></section>
-        {attachments.length>0&&<section className="detail-section"><h2>Файлы</h2>{downloadNotice&&<p role="status">{downloadNotice}</p>}{attachments.map(file=><button key={file.id} type="button" className="secondary attachment-download" onClick={()=>downloadAttachment(file)}>Скачать {file.filename}</button>)}</section>}
+        {attachmentSection()}
         {selectedOrder.status==='awaiting_confirmation'&&<p className="inline-message">Вы завершили работу. Заказчик должен подтвердить результат.</p>}
         {taskError&&<p className="inline-message" role="alert">{taskError}</p>}
         {selectedOrder.status==='assigned'&&<button className="primary order-detail-action" disabled={applying} onClick={()=>changeOrder(selectedOrder,'start')}>Взял в работу</button>}
@@ -120,13 +132,13 @@ export function Dashboard({ profile, onEditProfile, initData }: { profile: Saved
         <div className="detail-price"><span>Вознаграждение</span><strong>{selectedTask.budget}</strong></div>
         <section className="detail-section"><h2>О задаче</h2><p>{selectedTask.description}</p><div className="tag-row">{selectedTask.tags.map(tag => <span key={tag}>{tag}</span>)}</div>{Object.entries(selectedTask.fields||{}).map(([key,value])=><p key={key}>{selectedTask.fieldSchema?.find(def=>def.key===key)?.label||key}: {String(value)}</p>)}</section>
         <section className="detail-section"><h2>Условия</h2><div className="detail-facts"><div><Icon name="clock" size={20}/><span><small>Когда</small>{selectedTask.date}</span></div><div><Icon name="pin" size={20}/><span><small>Где</small>{selectedTask.place}</span></div><div><Icon name="user" size={20}/><span><small>Заказчик</small>{selectedTask.customer}</span></div></div></section>
-        {selectedTask.latitude!=null&&<p>Координаты: {selectedTask.latitude}, {selectedTask.longitude}</p>}{attachments.length>0&&<section className="detail-section"><h2>Файлы</h2>{downloadNotice&&<p role="status">{downloadNotice}</p>}{attachments.map(file=><button key={file.id} type="button" className="secondary attachment-download" onClick={()=>downloadAttachment(file)}>Скачать {file.filename}</button>)}</section>}
+        {selectedTask.latitude!=null&&<p>Координаты: {selectedTask.latitude}, {selectedTask.longitude}</p>}{attachmentSection()}
         <div className="detail-action"><button className="primary" type="button" disabled={applying || !!selectedTask.myApplication} onClick={apply}>{selectedTask.myApplication ? 'Отклик отправлен' : applying ? 'Отправляем…' : 'Откликнуться'}</button>{taskError && <p role="alert">{taskError}</p>}</div>
       </main> : tab === 'tasks' ? <main className="screen" id="main-content">
         <div className="home-heading"><span className="home-greeting">Привет, {firstName}</span><span className="heading-spark" aria-hidden="true">✦</span><h1>Новые <em>заявки</em></h1><p>Выбирайте подходящие задачи.</p></div>
         <div className="feed-heading"><div><h2>Доступны сейчас</h2><span>Задачи рядом с вами</span></div><span className="feed-count">{tasks.length}</span></div>
         {taskError && <p className="inline-message" role="alert">{taskError}</p>}
-        <div className="task-list">{tasks.map(task => <TaskCard key={task.id} task={task} onOpen={() => {setSelectedTask(task);void loadAttachments(task.id)}}/>)}</div>{tasks.length === 0 && !taskError && <div className="empty-panel"><h2>Пока нет заявок</h2><p>Новые задания появятся здесь после публикации заказчиком.</p></div>}
+        <div className="task-list">{tasks.map(task => <TaskCard key={task.id} task={task} onOpen={() => {setSelectedTask(task);setAttachments([]);void loadAttachments(task.id)}}/>)}</div>{tasks.length === 0 && !taskError && <div className="empty-panel"><h2>Пока нет заявок</h2><p>Новые задания появятся здесь после публикации заказчиком.</p></div>}
       </main> : tab === 'order' ? <main className="screen" id="main-content">
         <div className="screen-heading"><span className="overline">МОЯ РАБОТА</span><h1>Активный заказ</h1><p>Назначенные вам заявки.</p></div>
         {taskError && <p className="inline-message" role="alert">{taskError}</p>}
@@ -139,6 +151,7 @@ export function Dashboard({ profile, onEditProfile, initData }: { profile: Saved
       </main>}
     </div>
     {confirmOrderId!==null&&<div className="confirm-scrim" role="presentation"><div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title"><h2 id="confirm-title">Завершить работу?</h2><p>Заказ перейдёт в ожидание подтверждения заказчиком.</p>{taskError&&<p role="alert">{taskError}</p>}<div><button className="secondary" type="button" disabled={applying} onClick={()=>setConfirmOrderId(null)}>Отмена</button><button className="primary" type="button" disabled={applying} onClick={()=>{const order=orders.find(item=>item.id===confirmOrderId);if(order)void changeOrder(order,'complete')}}>{applying?'Сохраняем…':'Завершить работу'}</button></div></div></div>}
+    {previewPhoto&&photoUrls[previewPhoto.id]&&<div className="photo-viewer-backdrop" role="presentation" onClick={()=>setPreviewPhoto(null)}><div className="photo-viewer" role="dialog" aria-modal="true" aria-label={`Фото ${previewPhoto.filename}`} onClick={event=>event.stopPropagation()}><div className="photo-viewer-actions"><span>{previewPhoto.filename}</span><button type="button" onClick={()=>setPreviewPhoto(null)} aria-label="Закрыть фото">✕</button></div><img src={photoUrls[previewPhoto.id]} alt={previewPhoto.filename}/><button type="button" className="secondary" onClick={()=>downloadAttachment(previewPhoto)}>Сохранить фото</button></div></div>}
     <nav className="bottom-nav" aria-label="Главное меню"><div className="bottom-nav-inner">
       <button type="button" className={tab === 'tasks' && !showNotifications ? 'active' : ''} aria-current={tab === 'tasks' && !showNotifications ? 'page' : undefined} onClick={() => navigate('tasks')}><Icon name="list"/><span>Заявки</span></button>
       <button type="button" className={tab === 'order' && !showNotifications ? 'active' : ''} aria-current={tab === 'order' && !showNotifications ? 'page' : undefined} onClick={() => navigate('order')}><Icon name="briefcase"/><span>Активный заказ</span></button>
