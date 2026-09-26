@@ -120,6 +120,7 @@ footer { padding: 24px 0 8px; text-align: center; color: var(--text-secondary); 
 .bottom-nav button.active { color: var(--action-primary); }
 .bottom-nav button.active svg { fill: #e8a04418; }
 .bottom-nav button span { max-width: 100%; }
+.bottom-nav button span { white-space: nowrap; font-size: clamp(11px, 3.4vw, 14px); }
 .back-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin-bottom: 20px; padding: 0 8px 0 0; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); font-size: 14px; }
 .detail-heading h1 { margin: 10px 0 16px; font-size: 24px; line-height: 30px; }
 .detail-price { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 24px 0; padding: 20px; border: 1px solid #e8a04455; border-radius: 16px; background: #e8a04412; }
@@ -139,6 +140,7 @@ footer { padding: 24px 0 8px; text-align: center; color: var(--text-secondary); 
 .detail-action p, .order-actions p { margin: 10px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 18px; text-align: center; }
 .visual-only:disabled { cursor: default; opacity: .65; }
 .order-hero { padding: 24px; border: 1px solid #a48af555; border-radius: 24px; background: linear-gradient(145deg, #302942, var(--surface) 70%); }
+.order-list { display: grid; gap: 12px; }
 .order-hero h2 { margin: 20px 0 10px; font-size: 22px; line-height: 28px; }
 .order-hero p { margin: 0; color: var(--text-secondary); font-size: 14px; line-height: 21px; }
 .order-progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 28px; }
@@ -181,6 +183,7 @@ footer { padding: 24px 0 8px; text-align: center; color: var(--text-secondary); 
 .segmented button { min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); font-size: 14px; font-weight: 600; }
 .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text-primary); box-shadow: 0 2px 8px #0003; }
 .profile-task-card { padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.profile-task-card + .profile-task-card { margin-top: 12px; }
 .profile-task-card h3 { margin: 14px 0 8px; font-size: 16px; line-height: 22px; }
 .profile-task-card p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 18px; }
 .empty-panel { padding: 36px 24px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); text-align: center; }
