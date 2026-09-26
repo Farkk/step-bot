@@ -20,6 +20,21 @@ Mini App: <http://localhost:8080/app/>. Проверка готовности: <
 
 При запуске контейнер приложения выполняет версионированные SQL-миграции командой `server migrate`, затем запускает HTTP-сервер. Миграцию можно запустить отдельно: `docker compose run --rm app /app/server migrate`.
 
+## Развёртывание на VPS
+
+На VPS с Docker Compose и общей сетью Traefik `proxy` клонируйте репозиторий из GitHub. Создайте локальный `.env` на сервере по образцу `.env.example`: задайте `APP_ENV=production`, `PUBLIC_BASE_URL=https://step-bot.madebypavel.space`, токен MAX и уникальные `POSTGRES_PASSWORD`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `MAX_WEBHOOK_SECRET`, `SESSION_SECRET`. Не добавляйте `.env` в Git.
+
+```sh
+git clone https://github.com/Farkk/step-bot.git /opt/apps/step-bot.madebypavel.space
+cd /opt/apps/step-bot.madebypavel.space
+docker compose -f compose.yaml -f compose.vps.yaml up --build -d
+docker compose -f compose.yaml -f compose.vps.yaml ps
+```
+
+`compose.vps.yaml` подключает приложение к сети `proxy`, закрывает прямой доступ к его порту и включает HTTPS через имеющийся Traefik с Let's Encrypt. PostgreSQL и MinIO остаются только во внутренней сети проекта. После запуска проверьте `/health/ready`, `/app/` и `/admin/`. Для обновления выполните `git pull --ff-only` и повторите `docker compose -f compose.yaml -f compose.vps.yaml up --build -d`. Перед обновлением сделайте резервную копию PostgreSQL и тома MinIO.
+
+После получения сертификата настройте в MAX Mini App URL `https://step-bot.madebypavel.space/app/` и подписку на `https://step-bot.madebypavel.space/integrations/max/webhook` с тем же `MAX_WEBHOOK_SECRET`, который указан в `.env`.
+
 ## Структура
 
 - `cmd/server` — точка входа, миграции и корректная остановка сервера.

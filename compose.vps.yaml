@@ -1,0 +1,32 @@
+services:
+  app:
+    ports: !reset []
+    restart: unless-stopped
+    init: true
+    networks:
+      - default
+      - proxy
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy
+      traefik.http.routers.step-bot-http.rule: Host(`step-bot.madebypavel.space`)
+      traefik.http.routers.step-bot-http.entrypoints: http
+      traefik.http.routers.step-bot-http.middlewares: redirect-to-https@file
+      traefik.http.routers.step-bot-https.rule: Host(`step-bot.madebypavel.space`)
+      traefik.http.routers.step-bot-https.entrypoints: https
+      traefik.http.routers.step-bot-https.tls: "true"
+      traefik.http.routers.step-bot-https.tls.certresolver: letsEncrypt
+      traefik.http.services.step-bot.loadbalancer.server.port: "8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  postgres:
+    restart: unless-stopped
+  minio:
+    restart: unless-stopped
+
+networks:
+  proxy:
+    external: true
