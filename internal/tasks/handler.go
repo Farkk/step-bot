@@ -149,6 +149,7 @@ func (h Handler) Routes(m *http.ServeMux) {
 	m.HandleFunc("GET /api/v1/worker/tasks", h.workerList)
 	m.HandleFunc("POST /api/v1/worker/tasks/{id}/applications", h.apply)
 	m.HandleFunc("GET /api/v1/worker/orders", h.orders)
+	m.HandleFunc("GET /api/v1/worker/notifications", h.workerNotifications)
 	m.HandleFunc("POST /api/v1/worker/orders/{id}/status", h.orderStatus)
 	h.featureRoutes(m)
 }

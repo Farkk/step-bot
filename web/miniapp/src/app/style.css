@@ -148,6 +148,22 @@ footer { padding: 24px 0 8px; text-align: center; color: var(--text-secondary); 
 .order-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .order-actions .secondary { width: 100%; }
 .order-actions p { grid-column: 1 / -1; }
+.notification-button{position:relative}
+.notification-count{position:absolute;top:0;right:0;display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--gold-500);color:var(--black-950);font-size:11px;font-weight:800}
+.notification-list{display:grid;gap:12px}
+.notification-item{display:grid;gap:5px;padding:16px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
+.notification-item strong{font-size:15px}.notification-item span,.notification-item time{color:var(--text-secondary);font-size:13px}
+.attachment-download{display:block;width:100%;min-height:44px;margin-top:8px;text-align:left;overflow-wrap:anywhere}
+.order-open{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-top:12px;padding:0;border:0;background:transparent;color:var(--gold-500);font-size:14px;font-weight:700;cursor:pointer}
+.order-open:focus-visible{outline:2px solid var(--gold-500);outline-offset:3px}
+.order-state-hint{margin-top:16px!important}
+.order-actions:empty{display:none}
+.order-actions{grid-template-columns:1fr}
+.order-detail-action{width:100%;margin-top:20px}
+.confirm-scrim{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:16px;background:#000a}
+.confirm-dialog{width:min(100%,420px);padding:24px;border:1px solid var(--border);border-radius:20px;background:var(--surface);box-shadow:0 20px 60px #0008}
+.confirm-dialog h2{margin:0 0 12px;font-size:22px}.confirm-dialog p{color:var(--text-secondary);line-height:1.5}
+.confirm-dialog>div{display:flex;gap:12px;margin-top:24px}.confirm-dialog>div button{flex:1}
 .profile-identity { display: flex; align-items: center; gap: 16px; margin: 0 0 28px; }
 .avatar { display: grid; place-items: center; flex: none; width: 64px; height: 64px; border: 1px solid #e8a04455; border-radius: 20px; background: #e8a04420; color: var(--action-primary); font-size: 28px; font-weight: 700; }
 .profile-identity h2 { margin: 0 0 4px; font-size: 20px; line-height: 26px; overflow-wrap: anywhere; }
