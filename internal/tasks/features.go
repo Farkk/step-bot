@@ -389,7 +389,7 @@ func (h Handler) allApplications(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := h.DB.QueryContext(r.Context(), `SELECT a.id,t.id,t.title,t.status,COALESCE(NULLIF(mi.display_name,''),u.full_name),a.status,a.created_at,COALESCE((SELECT avg(tr.score) FROM task_ratings tr JOIN tasks done ON done.id=tr.task_id WHERE done.assigned_user_id=a.user_id),0),(SELECT count(*) FROM task_ratings tr JOIN tasks done ON done.id=tr.task_id WHERE done.assigned_user_id=a.user_id),(SELECT count(*) FROM tasks done WHERE done.assigned_user_id=a.user_id AND done.status='completed') FROM applications a JOIN tasks t ON t.id=a.task_id JOIN users u ON u.id=a.user_id LEFT JOIN max_identities mi ON mi.user_id=u.id WHERE t.company_id=$1 ORDER BY a.created_at DESC`, m.CompanyID)
+	rows, err := h.DB.QueryContext(r.Context(), `SELECT a.id,t.id,t.title,t.status,u.full_name,a.status,a.created_at,COALESCE((SELECT avg(tr.score) FROM task_ratings tr JOIN tasks done ON done.id=tr.task_id WHERE done.assigned_user_id=a.user_id),0),(SELECT count(*) FROM task_ratings tr JOIN tasks done ON done.id=tr.task_id WHERE done.assigned_user_id=a.user_id),(SELECT count(*) FROM tasks done WHERE done.assigned_user_id=a.user_id AND done.status='completed') FROM applications a JOIN tasks t ON t.id=a.task_id JOIN users u ON u.id=a.user_id WHERE t.company_id=$1 ORDER BY a.created_at DESC`, m.CompanyID)
 	if err != nil {
 		http.Error(w, "Ошибка базы", 500)
 		return

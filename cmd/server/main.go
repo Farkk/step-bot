@@ -73,7 +73,10 @@ func main() {
 	workerDone := make(chan struct{})
 	inboxDone := make(chan struct{})
 	go func() { defer close(workerDone); max.RunOutbox(ctx, db, max.Sender{Token: cfg.BotToken}, logger) }()
-	go func() { defer close(inboxDone); tasks.RunMaxInbox(ctx, db, max.Sender{Token: cfg.BotToken}, logger) }()
+	go func() {
+		defer close(inboxDone)
+		tasks.RunMaxInbox(ctx, db, storage.ObjectStoreFromEnv(cfg.S3Endpoint), max.Sender{Token: cfg.BotToken}, logger)
+	}()
 	go func() {
 		logger.Info("server started", "port", cfg.Port, "environment", cfg.Env)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

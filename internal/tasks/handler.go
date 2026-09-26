@@ -420,7 +420,7 @@ func (h Handler) adminApplications(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Заявка не найдена", 404)
 		return
 	}
-	rows, err := h.DB.QueryContext(r.Context(), `SELECT a.id,a.user_id,COALESCE(NULLIF(mi.display_name,''),u.full_name),a.status,a.created_at,COALESCE((SELECT avg(tr.score) FROM task_ratings tr JOIN tasks t ON t.id=tr.task_id WHERE t.assigned_user_id=a.user_id),0), (SELECT count(*) FROM task_ratings tr JOIN tasks t ON t.id=tr.task_id WHERE t.assigned_user_id=a.user_id), (SELECT count(*) FROM tasks t WHERE t.assigned_user_id=a.user_id AND t.status='completed') FROM applications a JOIN users u ON u.id=a.user_id LEFT JOIN max_identities mi ON mi.user_id=u.id WHERE a.task_id=$1 ORDER BY a.created_at`, id)
+	rows, err := h.DB.QueryContext(r.Context(), `SELECT a.id,a.user_id,u.full_name,a.status,a.created_at,COALESCE((SELECT avg(tr.score) FROM task_ratings tr JOIN tasks t ON t.id=tr.task_id WHERE t.assigned_user_id=a.user_id),0), (SELECT count(*) FROM task_ratings tr JOIN tasks t ON t.id=tr.task_id WHERE t.assigned_user_id=a.user_id), (SELECT count(*) FROM tasks t WHERE t.assigned_user_id=a.user_id AND t.status='completed') FROM applications a JOIN users u ON u.id=a.user_id WHERE a.task_id=$1 ORDER BY a.created_at`, id)
 	if err != nil {
 		http.Error(w, "Ошибка базы", 500)
 		return

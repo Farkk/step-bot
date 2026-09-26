@@ -53,6 +53,7 @@ func deliverOne(ctx context.Context, db *sql.DB, sender Sender) error {
 	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	taskOpen := true
+	hasPhoto := false
 	isNewTask := strings.HasPrefix(body, "Новая заявка №") || strings.HasPrefix(body, "Новая заявка «")
 	if isNewTask {
 		var title, description, location, status string
@@ -85,6 +86,9 @@ func deliverOne(ctx context.Context, db *sql.DB, sender Sender) error {
 			if tx.QueryRowContext(ctx, `SELECT count(*) FROM task_attachments WHERE task_id=$1`, taskID).Scan(&files) == nil && files > 0 {
 				body += fmt.Sprintf("\nВложений: %d (откройте Mini App)", files)
 			}
+			if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM task_attachments WHERE task_id=$1 AND content_type LIKE 'image/%')`, taskID).Scan(&hasPhoto); err != nil {
+				return err
+			}
 			if status != "open" {
 				taskOpen = false
 				body += "\nЗаявка уже закрыта для откликов."
@@ -95,9 +99,9 @@ func deliverOne(ctx context.Context, db *sql.DB, sender Sender) error {
 	}
 	var sendErr error
 	if isNewTask && taskOpen {
-		sendErr = sender.SendTask(sendCtx, maxID, taskID, body)
+		sendErr = sender.SendTaskWithPhoto(sendCtx, maxID, taskID, body, hasPhoto)
 	} else {
-		sendErr = sender.Send(sendCtx, maxID, body)
+		sendErr = sender.SendOrder(sendCtx, maxID, taskID, body)
 	}
 	if err = sendErr; err != nil {
 		// Retry with capped exponential delay; keep failed messages visible in the outbox.

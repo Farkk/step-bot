@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"step-bot/internal/max"
+	"step-bot/internal/storage"
 )
 
 type maxEvent struct {
@@ -36,7 +37,7 @@ type maxEvent struct {
 	} `json:"message"`
 }
 
-func RunMaxInbox(ctx context.Context, db *sql.DB, sender max.Sender, logger *slog.Logger) {
+func RunMaxInbox(ctx context.Context, db *sql.DB, store *storage.ObjectStore, sender max.Sender, logger *slog.Logger) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -45,12 +46,12 @@ func RunMaxInbox(ctx context.Context, db *sql.DB, sender max.Sender, logger *slo
 			return
 		case <-ticker.C:
 		}
-		if err := processMaxEvent(ctx, db, sender); err != nil && ctx.Err() == nil {
+		if err := processMaxEvent(ctx, db, store, sender); err != nil && ctx.Err() == nil {
 			logger.Error("Max inbox", "error", err)
 		}
 	}
 }
-func processMaxEvent(ctx context.Context, db *sql.DB, sender max.Sender) error {
+func processMaxEvent(ctx context.Context, db *sql.DB, store *storage.ObjectStore, sender max.Sender) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -74,6 +75,8 @@ func processMaxEvent(ctx context.Context, db *sql.DB, sender max.Sender) error {
 	}
 	result := ""
 	callbackID := ""
+	var photoKey, photoFilename string
+	var photoRecipient int64
 	replyUserID := event.Message.Sender.UserID
 	if event.UpdateType == "message_callback" && strings.HasPrefix(event.Callback.Payload, "apply:") {
 		taskID, parseErr := strconv.ParseInt(strings.TrimPrefix(event.Callback.Payload, "apply:"), 10, 64)
@@ -91,6 +94,25 @@ func processMaxEvent(ctx context.Context, db *sql.DB, sender max.Sender) error {
 		}
 		callbackID = event.Callback.CallbackID
 	}
+	if event.UpdateType == "message_callback" && strings.HasPrefix(event.Callback.Payload, "photo:") {
+		callbackID = event.Callback.CallbackID
+		photoRecipient = event.Callback.User.UserID
+		if photoRecipient == 0 {
+			photoRecipient = event.User.UserID
+		}
+		taskID, parseErr := strconv.ParseInt(strings.TrimPrefix(event.Callback.Payload, "photo:"), 10, 64)
+		if parseErr != nil || taskID < 1 || photoRecipient < 1 {
+			result = "Некорректная заявка"
+		} else {
+			err = tx.QueryRowContext(ctx, `SELECT a.object_key,a.filename FROM task_attachments a JOIN tasks t ON t.id=a.task_id JOIN max_identities m ON m.max_id=$2 WHERE a.task_id=$1 AND a.content_type LIKE 'image/%' AND (t.status='open' OR t.assigned_user_id=m.user_id) ORDER BY a.id LIMIT 1`, taskID, photoRecipient).Scan(&photoKey, &photoFilename)
+			if errors.Is(err, sql.ErrNoRows) {
+				result = "Фото недоступно или заявка закрыта"
+				err = nil
+			} else if err != nil {
+				return err
+			}
+		}
+	}
 	if event.UpdateType == "message_created" && strings.TrimSpace(event.Message.Body.Text) == "/tasks" {
 		result, err = listTasksFromMax(ctx, tx, event.Message.Sender.UserID)
 		if err != nil {
@@ -106,6 +128,17 @@ func processMaxEvent(ctx context.Context, db *sql.DB, sender max.Sender) error {
 	}
 	if err = tx.Commit(); err != nil {
 		return err
+	}
+	if photoKey != "" && sender.Token != "" {
+		data, getErr := store.Get(ctx, photoKey)
+		if getErr == nil {
+			getErr = sender.SendImage(ctx, photoRecipient, photoFilename, data)
+		}
+		if getErr != nil {
+			result = "Не удалось отправить фото. Попробуйте ещё раз."
+		} else {
+			result = "Фото отправлено"
+		}
 	}
 	if callbackID != "" && sender.Token != "" {
 		if err = sender.Answer(ctx, callbackID, result); err != nil {
