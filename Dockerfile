@@ -22,6 +22,10 @@ COPY migrations ./migrations
 RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /server ./cmd/server
 
 FROM alpine:3.22
+RUN apk add --no-cache ca-certificates
+COPY certs/russian_trusted_root_ca_pem.crt /usr/local/share/ca-certificates/russian_trusted_root_ca.crt
+COPY certs/russian_trusted_sub_ca_pem.crt /usr/local/share/ca-certificates/russian_trusted_sub_ca.crt
+RUN update-ca-certificates
 RUN addgroup -S app && adduser -S -G app app
 WORKDIR /app
 COPY --from=backend /server /app/server

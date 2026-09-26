@@ -33,6 +33,8 @@ docker compose -f compose.yaml -f compose.vps.yaml ps
 
 `compose.vps.yaml` подключает приложение к сети `proxy`, закрывает прямой доступ к его порту и включает HTTPS через имеющийся Traefik с Let's Encrypt. PostgreSQL и MinIO остаются только во внутренней сети проекта. После запуска проверьте `/health/ready`, `/app/` и `/admin/`. Для обновления выполните `git pull --ff-only` и повторите `docker compose -f compose.yaml -f compose.vps.yaml up --build -d`. Перед обновлением сделайте резервную копию PostgreSQL и тома MinIO.
 
+Образ приложения добавляет [корневой](https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt) и [промежуточный](https://gu-st.ru/content/lending/russian_trusted_sub_ca_pem.crt) сертификаты Минцифры из официального источника в хранилище доверенных CA: они нужны для HTTPS-запросов к `platform-api2.max.ru`.
+
 После получения сертификата настройте в MAX Mini App URL `https://step-bot.madebypavel.space/app/` и подписку на `https://step-bot.madebypavel.space/integrations/max/webhook` с тем же `MAX_WEBHOOK_SECRET`, который указан в `.env`.
 
 ## Структура
