@@ -101,6 +101,7 @@ func (h Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/logout", h.logout)
 	mux.HandleFunc("POST /api/v1/auth/password", h.changePassword)
 	mux.HandleFunc("GET /api/v1/admin/members", h.members)
+	mux.HandleFunc("GET /api/v1/admin/executors", h.executors)
 	mux.HandleFunc("POST /api/v1/admin/members", h.createMember)
 	mux.HandleFunc("PUT /api/v1/admin/members/{id}/role", h.changeRole)
 }

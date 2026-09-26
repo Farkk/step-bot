@@ -35,6 +35,20 @@ type Profile struct {
 }
 
 var phonePattern = regexp.MustCompile(`^\+?[0-9]{10,15}$`)
+var namePartPattern = regexp.MustCompile(`^[\p{L}][\p{L}'’-]+$`)
+
+func validFullName(name string) bool {
+	parts := strings.Fields(name)
+	if len([]rune(name)) > 150 || len(parts) < 2 {
+		return false
+	}
+	for _, part := range parts {
+		if !namePartPattern.MatchString(part) {
+			return false
+		}
+	}
+	return true
+}
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	user, err := h.authenticate(r)
@@ -74,7 +88,7 @@ func (h Handler) get(w http.ResponseWriter, r *http.Request, user max.User) {
 	var p Profile
 	err := h.DB.QueryRowContext(r.Context(), `SELECT u.full_name, u.phone, u.gender, u.age, u.phone_verified FROM users u JOIN max_identities m ON m.user_id=u.id WHERE m.max_id=$1`, user.ID).Scan(&p.FullName, &p.Phone, &p.Gender, &p.Age, &p.PhoneVerified)
 	if errors.Is(err, sql.ErrNoRows) {
-		respond(w, http.StatusOK, map[string]any{"registered": false, "suggestedName": strings.TrimSpace(user.FirstName + " " + user.LastName)})
+		respond(w, http.StatusOK, map[string]any{"registered": false})
 		return
 	}
 	if err != nil {
@@ -99,7 +113,7 @@ func (h Handler) put(w http.ResponseWriter, r *http.Request, user max.User) {
 	}
 	p.FullName = strings.Join(strings.Fields(p.FullName), " ")
 	p.Phone = strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(p.Phone, " ", ""), "-", ""), "(", ""), ")", "")
-	if len([]rune(p.FullName)) < 3 || len([]rune(p.FullName)) > 150 || !phonePattern.MatchString(p.Phone) || p.Age < 1 || p.Age > 120 || (p.Gender != "male" && p.Gender != "female") {
+	if !validFullName(p.FullName) || !phonePattern.MatchString(p.Phone) || p.Age < 1 || p.Age > 120 || (p.Gender != "male" && p.Gender != "female") {
 		http.Error(w, "Проверьте поля профиля", http.StatusBadRequest)
 		return
 	}
@@ -129,7 +143,7 @@ func (h Handler) put(w http.ResponseWriter, r *http.Request, user max.User) {
 			_, err = tx.ExecContext(r.Context(), `INSERT INTO max_identities(max_id,user_id,display_name) VALUES($1,$2,$3)`, user.ID, id, strings.TrimSpace(user.FirstName+" "+user.LastName))
 		}
 	} else if err == nil {
-		_, err = tx.ExecContext(r.Context(), `UPDATE users SET full_name=$1,phone=$2,phone_verified=$3,gender=$4,age=$5,updated_at=now() WHERE id=$6`, p.FullName, p.Phone, p.PhoneVerified, p.Gender, p.Age, id)
+		err = tx.QueryRowContext(r.Context(), `UPDATE users SET full_name=$1,phone=$2,phone_verified=CASE WHEN $3 THEN true WHEN phone=$2 THEN phone_verified ELSE false END,gender=$4,age=$5,updated_at=now() WHERE id=$6 RETURNING phone_verified`, p.FullName, p.Phone, p.PhoneVerified, p.Gender, p.Age, id).Scan(&p.PhoneVerified)
 		if err == nil {
 			_, err = tx.ExecContext(r.Context(), `UPDATE max_identities SET display_name=$1,updated_at=now() WHERE max_id=$2`, strings.TrimSpace(user.FirstName+" "+user.LastName), user.ID)
 		}

@@ -149,7 +149,7 @@ func listTasksFromMax(ctx context.Context, tx *sql.Tx, maxID int64) (string, err
 		return "", err
 	}
 	for _, task := range tasks {
-		_, err = tx.ExecContext(ctx, `INSERT INTO notification_outbox(task_id,user_id,text) VALUES($1,$2,$3)`, task.id, userID, fmt.Sprintf("Новая заявка №%d «%s»", task.id, task.title))
+		_, err = tx.ExecContext(ctx, `INSERT INTO notification_outbox(task_id,user_id,text) VALUES($1,$2,$3)`, task.id, userID, fmt.Sprintf("Новая заявка «%s»", task.title))
 		if err != nil {
 			return "", err
 		}
@@ -194,9 +194,9 @@ func applyFromMax(ctx context.Context, tx *sql.Tx, taskID, maxID int64) (string,
 	if err != nil {
 		return "", err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO notification_outbox(task_id,user_id,text) VALUES($1,$2,$3)`, taskID, userID, fmt.Sprintf("Отклик на заявку №%d отправлен", taskID))
+	_, err = tx.ExecContext(ctx, `INSERT INTO notification_outbox(task_id,user_id,text) VALUES($1,$2,$3)`, taskID, userID, "Отклик на заявку отправлен")
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Отклик на заявку №%d отправлен", taskID), nil
+	return "Отклик на заявку отправлен", nil
 }

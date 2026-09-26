@@ -16,16 +16,17 @@ import (
 )
 
 type CreateInput struct {
-	Title       string         `json:"title"`
-	Category    string         `json:"category"`
-	Description string         `json:"description"`
-	Budget      int64          `json:"budget"`
-	Deadline    time.Time      `json:"deadline"`
-	Location    string         `json:"location"`
-	Latitude    *float64       `json:"latitude,omitempty"`
-	Longitude   *float64       `json:"longitude,omitempty"`
-	Fields      map[string]any `json:"fields,omitempty"`
-	Publish     *bool          `json:"publish,omitempty"`
+	Title              string         `json:"title"`
+	Category           string         `json:"category"`
+	Description        string         `json:"description"`
+	Budget             int64          `json:"budget"`
+	Deadline           time.Time      `json:"deadline"`
+	StartOffsetMinutes *int           `json:"startOffsetMinutes,omitempty"`
+	Location           string         `json:"location"`
+	Latitude           *float64       `json:"latitude,omitempty"`
+	Longitude          *float64       `json:"longitude,omitempty"`
+	Fields             map[string]any `json:"fields,omitempty"`
+	Publish            *bool          `json:"publish,omitempty"`
 }
 
 func (v CreateInput) Validate(now time.Time) error {
@@ -34,6 +35,9 @@ func (v CreateInput) Validate(now time.Time) error {
 	}
 	if (v.Latitude == nil) != (v.Longitude == nil) {
 		return errors.New("Укажите обе координаты")
+	}
+	if v.StartOffsetMinutes != nil && (*v.StartOffsetMinutes < -840 || *v.StartOffsetMinutes > 840) {
+		return errors.New("Некорректный часовой пояс")
 	}
 	if v.Latitude != nil && (*v.Latitude < -90 || *v.Latitude > 90 || *v.Longitude < -180 || *v.Longitude > 180) {
 		return errors.New("Некорректные координаты")
@@ -257,7 +261,11 @@ func (h Handler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	var id int64
-	err = tx.QueryRowContext(r.Context(), `INSERT INTO tasks(company_id,created_by,title,category,description,budget,deadline,location,field_values,field_schema,latitude,longitude,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`, member.CompanyID, member.ID, input.Title, input.Category, input.Description, input.Budget, input.Deadline, input.Location, string(fieldsJSON), string(schemaJSON), input.Latitude, input.Longitude, status).Scan(&id)
+	startOffset := 180
+	if input.StartOffsetMinutes != nil {
+		startOffset = *input.StartOffsetMinutes
+	}
+	err = tx.QueryRowContext(r.Context(), `INSERT INTO tasks(company_id,created_by,title,category,description,budget,deadline,location,field_values,field_schema,latitude,longitude,status,start_offset_minutes) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`, member.CompanyID, member.ID, input.Title, input.Category, input.Description, input.Budget, input.Deadline, input.Location, string(fieldsJSON), string(schemaJSON), input.Latitude, input.Longitude, status, startOffset).Scan(&id)
 	if err == nil {
 		kind := "published"
 		if status == "draft" {
@@ -266,7 +274,7 @@ func (h Handler) create(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.ExecContext(r.Context(), `INSERT INTO task_events(task_id,kind,actor_member_id) VALUES($1,$2,$3)`, id, kind, member.ID)
 	}
 	if err == nil && status == "open" {
-		_, err = tx.ExecContext(r.Context(), `INSERT INTO notification_outbox(task_id,user_id,text) SELECT $1,m.user_id,$2 FROM max_identities m WHERE m.max_id>0`, id, "Новая заявка №"+strconv.FormatInt(id, 10)+" «"+input.Title+"». Откройте ШАГ в MAX, чтобы увидеть детали.")
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO notification_outbox(task_id,user_id,text) SELECT $1,m.user_id,$2 FROM max_identities m WHERE m.max_id>0`, id, "Новая заявка «"+input.Title+"». Откройте ШАГ в MAX, чтобы увидеть детали.")
 	}
 	if err != nil || tx.Commit() != nil {
 		http.Error(w, "Не удалось создать заявку", 500)
@@ -315,7 +323,7 @@ func (h Handler) publish(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.ExecContext(r.Context(), `INSERT INTO task_events(task_id,kind,actor_member_id) VALUES($1,'published',$2)`, id, m.ID)
 	}
 	if err == nil {
-		_, err = tx.ExecContext(r.Context(), `INSERT INTO notification_outbox(task_id,user_id,text) SELECT $1,m.user_id,$2 FROM max_identities m WHERE m.max_id>0`, id, "Новая заявка №"+strconv.FormatInt(id, 10)+" «"+title+"».")
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO notification_outbox(task_id,user_id,text) SELECT $1,m.user_id,$2 FROM max_identities m WHERE m.max_id>0`, id, "Новая заявка «"+title+"».")
 	}
 	if err != nil || tx.Commit() != nil {
 		http.Error(w, "Не удалось опубликовать", 500)
@@ -508,7 +516,7 @@ func (h Handler) decide(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err == nil && input.Decision == "accept" {
-		_, err = tx.ExecContext(r.Context(), `INSERT INTO notification_outbox(task_id,user_id,text) SELECT $1,a.user_id,$2 FROM applications a JOIN max_identities m ON m.user_id=a.user_id AND m.max_id>0 WHERE a.task_id=$1 AND a.id<>$3 AND a.status='rejected'`, taskID, "Заявка №"+strconv.FormatInt(taskID, 10)+" «"+title+"»: ваш отклик отклонён. Откройте ШАГ в MAX, чтобы увидеть детали.", appID)
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO notification_outbox(task_id,user_id,text) SELECT $1,a.user_id,$2 FROM applications a JOIN max_identities m ON m.user_id=a.user_id AND m.max_id>0 WHERE a.task_id=$1 AND a.id<>$3 AND a.status='rejected'`, taskID, "Заявка «"+title+"»: ваш отклик отклонён. Откройте ШАГ в MAX, чтобы увидеть детали.", appID)
 	}
 	if err != nil || tx.Commit() != nil {
 		http.Error(w, "Не удалось сохранить решение", 500)
@@ -651,7 +659,7 @@ func (h Handler) adminStatus(w http.ResponseWriter, r *http.Request) {
 		err = enqueue(r.Context(), tx, id, assignee.Int64, next, title)
 	}
 	if err == nil && next == "cancelled" && !assignee.Valid {
-		_, err = tx.ExecContext(r.Context(), `INSERT INTO notification_outbox(task_id,user_id,text) SELECT $1,a.user_id,$2 FROM applications a JOIN max_identities m ON m.user_id=a.user_id AND m.max_id>0 WHERE a.task_id=$1 AND a.status='pending'`, id, "Заявка №"+strconv.FormatInt(id, 10)+" «"+title+"»: отменена. Откройте ШАГ в MAX, чтобы увидеть детали.")
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO notification_outbox(task_id,user_id,text) SELECT $1,a.user_id,$2 FROM applications a JOIN max_identities m ON m.user_id=a.user_id AND m.max_id>0 WHERE a.task_id=$1 AND a.status='pending'`, id, "Заявка «"+title+"»: отменена. Откройте ШАГ в MAX, чтобы увидеть детали.")
 	}
 	if err != nil || tx.Commit() != nil {
 		http.Error(w, "Не удалось обновить заявку", 500)

@@ -20,4 +20,10 @@ func TestValidateCreate(t *testing.T) {
 	if bad.Validate(time.Now()) == nil {
 		t.Fatal("past deadline accepted")
 	}
+	invalidOffset := 900
+	bad = good
+	bad.StartOffsetMinutes = &invalidOffset
+	if bad.Validate(time.Now()) == nil {
+		t.Fatal("invalid timezone offset accepted")
+	}
 }

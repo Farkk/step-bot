@@ -23,7 +23,7 @@ func nextStatus(current, action string) string {
 }
 
 func enqueue(ctx context.Context, tx *sql.Tx, taskID int64, userID int64, status, title string) error {
-	message := fmt.Sprintf("Заявка №%d «%s»: %s. Откройте ШАГ в MAX, чтобы увидеть детали.", taskID, title, statusLabel(status))
+	message := fmt.Sprintf("Заявка «%s»: %s. Откройте ШАГ в MAX, чтобы увидеть детали.", title, statusLabel(status))
 	_, err := tx.ExecContext(ctx, `INSERT INTO notification_outbox(task_id,user_id,text) SELECT $1,m.user_id,$3 FROM max_identities m WHERE m.user_id=$2 AND m.max_id>0`, taskID, userID, message)
 	return err
 }

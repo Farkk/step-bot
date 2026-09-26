@@ -29,6 +29,11 @@ func RunOutbox(ctx context.Context, db *sql.DB, sender Sender, logger *slog.Logg
 	}
 }
 
+func formatStartTime(instant time.Time, offsetMinutes int) string {
+	zone := time.FixedZone("", offsetMinutes*60)
+	return instant.In(zone).Format("02.01.2006 15:04")
+}
+
 func deliverOne(ctx context.Context, db *sql.DB, sender Sender) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -48,17 +53,19 @@ func deliverOne(ctx context.Context, db *sql.DB, sender Sender) error {
 	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	taskOpen := true
-	if strings.HasPrefix(body, "Новая заявка №") {
+	isNewTask := strings.HasPrefix(body, "Новая заявка №") || strings.HasPrefix(body, "Новая заявка «")
+	if isNewTask {
 		var title, description, location, status string
 		var budget int64
 		var deadline time.Time
+		var startOffsetMinutes int
 		var valuesRaw, schemaRaw []byte
-		if e := tx.QueryRowContext(ctx, `SELECT title,description,budget,deadline,location,status,field_values,field_schema FROM tasks WHERE id=$1`, taskID).Scan(&title, &description, &budget, &deadline, &location, &status, &valuesRaw, &schemaRaw); e == nil {
+		if e := tx.QueryRowContext(ctx, `SELECT title,description,budget,deadline,location,status,field_values,field_schema,start_offset_minutes FROM tasks WHERE id=$1`, taskID).Scan(&title, &description, &budget, &deadline, &location, &status, &valuesRaw, &schemaRaw, &startOffsetMinutes); e == nil {
 			runes := []rune(description)
 			if len(runes) > 2500 {
 				description = string(runes[:2500]) + "…"
 			}
-			body = fmt.Sprintf("Новая заявка №%d: %s\n%s\nБюджет: %d ₽\nСрок: %s\nМесто: %s", taskID, title, description, budget, deadline.Format("02.01.2006 15:04"), location)
+			body = fmt.Sprintf("Новая заявка: %s\n%s\nБюджет: %d ₽\nНачало работ: %s\nМесто: %s", title, description, budget, formatStartTime(deadline, startOffsetMinutes), location)
 			var values map[string]any
 			var schema []struct {
 				Key   string `json:"key"`
@@ -87,7 +94,7 @@ func deliverOne(ctx context.Context, db *sql.DB, sender Sender) error {
 		}
 	}
 	var sendErr error
-	if strings.HasPrefix(body, "Новая заявка №") && taskOpen {
+	if isNewTask && taskOpen {
 		sendErr = sender.SendTask(sendCtx, maxID, taskID, body)
 	} else {
 		sendErr = sender.Send(sendCtx, maxID, body)

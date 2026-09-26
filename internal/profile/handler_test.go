@@ -42,3 +42,16 @@ func TestLocalPreviewAccess(t *testing.T) {
 		})
 	}
 }
+
+func TestValidFullName(t *testing.T) {
+	for _, value := range []string{"Иван", "@ivan", "Иван 123", "А Б"} {
+		if validFullName(value) {
+			t.Errorf("accepted %q", value)
+		}
+	}
+	for _, value := range []string{"Иван Петров", "Анна-Мария Иванова"} {
+		if !validFullName(value) {
+			t.Errorf("rejected %q", value)
+		}
+	}
+}

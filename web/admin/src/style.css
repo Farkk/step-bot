@@ -13,6 +13,13 @@
 .real-task-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;color:var(--text-secondary);font-size:12px}
 .real-task-status{flex:none;max-width:55%;padding:5px 8px;border-radius:var(--radius-sm);background:var(--surface-raised);color:var(--text-primary);font-size:11px;font-weight:700;text-align:center}
 .real-task-card>strong{font-size:18px;line-height:24px;overflow-wrap:anywhere}
+.executors-list{display:grid}
+.executor-row{display:grid;grid-template-columns:minmax(180px,2fr) minmax(180px,1.5fr) minmax(140px,1fr);align-items:center;gap:16px;padding:16px 0;border-top:1px solid var(--border);font-size:14px}
+.executor-row:first-child{border-top:0}
+.executor-row strong,.executor-row small{display:block}
+.executor-row small{margin-top:4px;color:var(--text-secondary);font-size:12px}
+.executor-row a{color:var(--link)}
+@media(max-width:700px){.executor-row{grid-template-columns:1fr;gap:10px}}
 .real-task-card-meta{color:var(--text-secondary);font-size:13px;line-height:20px}
 .real-task-card-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:12px;border-top:1px solid var(--border);font-size:13px}
 .real-task-card-bottom span{color:var(--link);font-size:20px}
