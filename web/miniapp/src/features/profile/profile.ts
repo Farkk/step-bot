@@ -6,7 +6,7 @@ export function validateProfile(input: ProfileInput): ProfileErrors {
   const errors: ProfileErrors = {}
   const name = input.fullName.trim().replace(/\s+/g, ' ')
   if (!name) errors.fullName = 'Укажите ФИО'
-  else if (name.length < 3 || name.length > 150) errors.fullName = 'Проверьте ФИО'
+  else if (name.length > 150 || !/^\p{L}[\p{L}'’-]{1,}(?:\s+\p{L}[\p{L}'’-]{1,})+$/u.test(name)) errors.fullName = 'Укажите фамилию и имя'
   const phone = input.phone.replace(/[\s()\-]/g, '')
   if (!phone) errors.phone = 'Укажите телефон'
   else if (!/^\+7\d{10}$/.test(phone)) errors.phone = 'Проверьте номер телефона'

@@ -10,7 +10,7 @@ declare global {
 }
 
 export type SavedProfile = { fullName: string; phone: string; gender: Gender | 'other'; age: number; phoneVerified: boolean }
-export type ProfileResponse = { registered: false; suggestedName: string } | { registered: true; profile: SavedProfile }
+export type ProfileResponse = { registered: false } | { registered: true; profile: SavedProfile }
 export type ContactProof = { phone: string; authDate: string; hash: string }
 
 async function request(initData: string, method: 'GET' | 'PUT', body?: unknown): Promise<ProfileResponse> {

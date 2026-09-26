@@ -24,14 +24,20 @@ export function App() {
     if (!data) { setStatus('unavailable'); return }
     setInitData(data)
     loadProfile(data).then(result => {
-      if (result.registered) { setProfile(result.profile); setStatus('saved') }
-      else { setForm({ ...empty, fullName: result.suggestedName }); setStatus('form') }
+      if (result.registered) {
+        setProfile(result.profile)
+        if (validateProfile({ fullName: result.profile.fullName, phone: result.profile.phone, gender: result.profile.gender === 'male' || result.profile.gender === 'female' ? result.profile.gender : '', age: String(result.profile.age) }).fullName) {
+          setForm({ fullName: '', phone: result.profile.phone, gender: result.profile.gender === 'male' || result.profile.gender === 'female' ? result.profile.gender : '', age: String(result.profile.age) })
+          setStatus('form')
+        } else setStatus('saved')
+      }
+      else { setForm(empty); setStatus('form') }
     }).catch(error => { setMessage(error.message); setStatus('unavailable') })
   }, [])
 
   const localPreview = initData === LOCAL_PREVIEW
 
-  function editLocalProfile() {
+  function editProfile() {
     if (!profile) return
     setForm({ fullName: profile.fullName, phone: profile.phone, gender: profile.gender === 'male' || profile.gender === 'female' ? profile.gender : '', age: String(profile.age) })
     setStatus('form')
@@ -71,20 +77,20 @@ export function App() {
     finally { setBusy(false) }
   }
 
-  if (status === 'saved' && profile) return <Dashboard profile={profile} localPreview={localPreview} onEditProfile={editLocalProfile} initData={initData} />
+  if (status === 'saved' && profile) return <Dashboard profile={profile} onEditProfile={editProfile} initData={initData} />
 
   return <main className="page"><section className="shell" aria-labelledby="page-title">
     <header className="hero">
       <img className="logo" src="/app/step-logo.png" alt="Логотип ШАГ" />
       <span className="eyebrow">{localPreview ? 'ЛОКАЛЬНЫЙ ПРОСМОТР' : 'МИНИ-ПРИЛОЖЕНИЕ В MAX'}</span>
-      <h1 id="page-title">Первый шаг — ваш профиль</h1>
-      <p>Заполните данные один раз, чтобы начать работу в ШАГ.</p>
+      <h1 id="page-title">{profile ? 'Ваш профиль' : 'Первый шаг — ваш профиль'}</h1>
+      <p>{profile ? 'Проверьте и сохраните данные.' : 'Заполните данные, чтобы начать работу в ШАГ.'}</p>
     </header>
     {status === 'loading' && <p className="notice" role="status">Проверяем данные MAX…</p>}
     {status === 'unavailable' && <div className="notice" role="alert"><strong>Откройте приложение в MAX</strong><p>{message || 'Для сохранения профиля нужны данные запуска MAX.'}</p></div>}
     {status === 'form' && <form className="card form" onSubmit={submit} noValidate>
-      <div className="form-heading"><span className="step">01 / 01</span><h2>Личные данные</h2><p>{localPreview ? 'Локальный профиль для проверки формы. Заполните поля вручную.' : 'Имя подставлено из MAX. Проверьте его и заполните оставшиеся поля.'}</p></div>
-      <label className="field"><span>ФИО <b>*</b></span><input autoComplete="name" value={form.fullName} onChange={event => change('fullName', event.target.value)} aria-invalid={!!errors.fullName} aria-describedby={errors.fullName ? 'name-error' : undefined} placeholder="Иван Петров" />{errors.fullName && <small id="name-error" className="error">{errors.fullName}</small>}</label>
+      <div className="form-heading"><span className="step">01 / 01</span><h2>Личные данные</h2><p>Введите фамилию и имя как в документах. Никнейм MAX не используется.</p></div>
+      <label className="field"><span>Фамилия и имя <b>*</b></span><input autoComplete="name" value={form.fullName} onChange={event => change('fullName', event.target.value)} aria-invalid={!!errors.fullName} aria-describedby={errors.fullName ? 'name-error' : undefined} placeholder="Иванов Иван" />{errors.fullName && <small id="name-error" className="error">{errors.fullName}</small>}</label>
       <div className="field"><label htmlFor="phone">Телефон <b>*</b></label><div className="phone-row"><PhoneInput value={form.phone} onChange={value => change('phone', value)} invalid={!!errors.phone} describedBy={errors.phone ? 'phone-error' : (localPreview ? undefined : 'phone-help')} />{!localPreview && <button type="button" className="secondary" onClick={takePhoneFromMax}>Из MAX</button>}</div>{!localPreview && <small id="phone-help" className="hint">MAX запросит разрешение перед передачей номера.</small>}{errors.phone && <small id="phone-error" className="error">{errors.phone}</small>}</div>
       <div className="two-fields"><GenderSelect value={form.gender} onChange={value => change('gender', value)} invalid={!!errors.gender} error={errors.gender} /><label className="field"><span>Возраст <b>*</b></span><input type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" value={form.age} onChange={event => change('age', event.target.value)} aria-invalid={!!errors.age} aria-describedby={errors.age ? 'age-error' : undefined} placeholder="Лет" />{errors.age && <small id="age-error" className="error">{errors.age}</small>}</label></div>
       {message && <p className="inline-message" role="alert">{message}</p>}

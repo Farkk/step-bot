@@ -13,3 +13,10 @@ test('профиль требует ФИО, телефон, пол и допус
 test('вариант пола «Другой» больше не принимается', () => {
   assert.equal(validateProfile({ fullName: 'Иван Петров', phone: '+7 999 123-45-67', gender: 'other', age: '25' }).gender, 'Выберите пол')
 })
+
+test('никнейм и одно слово не принимаются как фамилия и имя', () => {
+  for (const fullName of ['Павел', '@pavel', 'Иван 123']) {
+    assert.equal(validateProfile({ fullName, phone: '+79991234567', gender: 'male', age: '25' }).fullName, 'Укажите фамилию и имя')
+  }
+  assert.equal(validateProfile({ fullName: 'Иван Петров', phone: '+79991234567', gender: 'male', age: '25' }).fullName, undefined)
+})
