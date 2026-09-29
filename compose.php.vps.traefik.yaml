@@ -1,0 +1,22 @@
+services:
+  app:
+    networks:
+      - default
+      - proxy
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: proxy
+      traefik.http.routers.step-php-http.rule: Host(`step-bot.madebypavel.space`)
+      traefik.http.routers.step-php-http.entrypoints: http
+      traefik.http.routers.step-php-http.priority: '100'
+      traefik.http.routers.step-php-http.middlewares: redirect-to-https@file
+      traefik.http.routers.step-php-https.rule: Host(`step-bot.madebypavel.space`)
+      traefik.http.routers.step-php-https.entrypoints: https
+      traefik.http.routers.step-php-https.priority: '100'
+      traefik.http.routers.step-php-https.tls: 'true'
+      traefik.http.routers.step-php-https.tls.certresolver: letsEncrypt
+      traefik.http.services.step-php.loadbalancer.server.port: '80'
+
+networks:
+  proxy:
+    external: true

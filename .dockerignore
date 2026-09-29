@@ -1,5 +1,13 @@
 .git
 .env
+**/.env
+backend/vendor
+backend/database/database.sqlite
+backend/bootstrap/cache/*.php
+backend/.agents
+backend/.ai
+backend/.codex
+backend/.claude
 **/node_modules
 **/dist
 **/*.tsbuildinfo

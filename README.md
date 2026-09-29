@@ -1,8 +1,63 @@
 # ШАГ — кабинет заказчика, бот и Mini App
 
-Реализация следует [технической спецификации](TECH_SPEC.md): один Go-процесс обслуживает webhook Max, HTTP и собранный React Mini App. PostgreSQL и MinIO работают в отдельных контейнерах. Веб-кабинет заказчика и Mini App работают через общий Go API.
+Серверная версия находится в `backend/`: Laravel 13, MySQL, бот MAX с обработкой очереди через cron. React Mini App и кабинет остались прежними. На действующем VPS и домене работает PHP-версия; прежний Go-контейнер остановлен. Текущий статус переноса описан в [руководстве проекта](docs/PROJECT_GUIDE.md).
 
 Для дальнейшей разработки используйте [skill проекта](skills/step-project/SKILL.md) и [живую документацию реализации](docs/PROJECT_GUIDE.md). Визуальные правила находятся в [дизайн-системе](DESIGN_SYSTEM.md).
+
+## Локальный запуск Laravel + MySQL
+
+Нужны Docker/OrbStack и Node.js для сборки двух существующих React-клиентов. Из корня проекта:
+
+```sh
+cp backend/.env.example backend/.env
+cd backend && composer install && php artisan key:generate && cd ..
+sh scripts/build-php-assets.sh
+docker compose -f compose.php.yaml up --build -d
+docker compose -f compose.php.yaml exec -T app php artisan migrate --force
+docker compose -f compose.php.yaml ps
+```
+
+В `compose.php.yaml` для локального просмотра включены `APP_ENV=local`, MySQL и порт `127.0.0.1:8082`. Mini App: <http://localhost:8082/app/>, кабинет: <http://localhost:8082/admin/>, готовность: <http://localhost:8082/health/ready>. Пробный проход очереди: `docker compose -f compose.php.yaml exec -T app php artisan max:tick`. Тесты: `cd backend && php artisan test --compact`. База новой версии независима от PostgreSQL прежнего сервера.
+
+Первого владельца создайте после миграций. Задайте пароль длиной от 12 символов в `ADMIN_INITIAL_PASSWORD` только на время команды:
+
+```sh
+read -r -s ADMIN_INITIAL_PASSWORD
+export ADMIN_INITIAL_PASSWORD
+docker compose -f compose.php.yaml exec -T -e ADMIN_INITIAL_PASSWORD app php artisan owner:create 'Компания' owner@example.ru 'Имя владельца'
+unset ADMIN_INITIAL_PASSWORD
+```
+
+## Развёртывание на обычном Beget
+
+Для установки из Git с уже готовыми React-сборками используйте [короткую инструкцию Beget](docs/BEGET_FROM_GIT.md). Подробности по настройке хостинга, переключению домена и проверкам — в [полной инструкции](docs/BEGET_SHARED_HOSTING.md).
+
+Схема каталога `public_html` → `public` и выбор PHP 8.3 соответствуют [инструкции Beget для Laravel](https://beget.com/ru/kb/how-to/web-apps/ustanovka-php-frejmvorkov). Версию сайта и PHP-директивы можно настроить в [панели сайтов Beget](https://beget.com/ru/kb/manual/sajty).
+
+Требуются PHP 8.3+ для сайта и CLI, MySQL, HTTPS, cron раз в минуту, расширения `mbstring`, `openssl`, `pdo_mysql`, `fileinfo`, `zip`. Тариф и фактическую версию PHP/MySQL следует проверить в панели Beget. Для вложений до 5 МБ выставьте `upload_max_filesize` не менее 6 МБ и `post_max_size` не менее 7 МБ в настройках PHP сайта. Сборки React уже лежат в `backend/public/app` и `backend/public/admin`; если исходники менялись, сначала выполните `sh scripts/build-php-assets.sh` локально.
+
+1. Клонируйте основную ветку GitHub в каталог сайта, вне `public_html`. Для SSH-сессии Beget можно выбрать PHP 8.3 через `export PATH=/usr/local/php/cgi/8.3/bin/:$PATH`. В `project/backend` установите PHP-зависимости командой `composer install --no-dev --prefer-dist --optimize-autoloader`.
+2. Создайте `backend/.env` по `backend/.env.example`. Укажите `APP_ENV=production`, `APP_DEBUG=false`, реальный HTTPS `APP_URL`, доступ к MySQL, `MAX_BOT_TOKEN`, публичное имя бота в `MAX_BOT_WEB_APP` (для кнопки Mini App) и случайный `MAX_WEBHOOK_SECRET`. Выполните `php artisan key:generate`, `php artisan migrate --force`, затем `php artisan owner:create ...` с временным `ADMIN_INITIAL_PASSWORD`.
+3. Настройте `public_html` как ссылку на `project/backend/public` или укажите этот каталог корнем сайта в панели. **Веб-сервер не должен отдавать `.env`, `vendor`, `storage` и исходники PHP.** Дайте PHP право записи в `backend/storage` и `backend/bootstrap/cache`.
+4. В Beget CronTab выберите тот же PHP 8.3+ CLI и поставьте запуск каждую минуту: `cd /абсолютный/путь/project/backend && /usr/local/php/cgi/8.3/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1`. Уточните путь к PHP на своём сервере; cron вызывает ограниченный `max:tick`, без фонового демона.
+5. Проверьте по HTTPS `/health/ready`, `/app/`, `/admin/`, вход владельца и тестовую заявку. После этого задайте в MAX Mini App URL `https://<домен>/app/` и webhook `https://<домен>/integrations/max/webhook` с тем же секретом. Переключение действующего домена и бота выполняется отдельно после проверки реального MAX.
+
+Файлы заявок хранятся в приватном `backend/storage/app/private` и скачиваются через `/api/v1/attachments/{id}` с проверкой доступа. Callback отклика получает быстрый ответ из webhook; обычные сообщения MAX могут задержаться до ближайшего запуска cron. При обновлении кода повторите `composer install --no-dev`, `php artisan migrate --force` и очистите кэш командой `php artisan optimize:clear`; содержимое `storage` и `.env` сохраняйте.
+
+## Действующая PHP-версия на VPS
+
+Каталог `/opt/apps/step-bot-php` содержит копию `backend/`, `Dockerfile.php`, `.dockerignore`, `compose.php.vps.yaml` и `compose.php.vps.traefik.yaml`. Секреты находятся только в локальных серверных `.env`; код кабинета и Mini App совпадает с локальной сборкой. Для проверки:
+
+```sh
+ssh vps 'cd /opt/apps/step-bot-php && docker compose -f compose.php.vps.yaml -f compose.php.vps.traefik.yaml ps'
+curl -fsS https://step-bot.madebypavel.space/health/ready
+```
+
+`app` обслуживает действующий домен через Traefik, `scheduler` каждую минуту запускает `php artisan schedule:run`, `mysql` хранит новую базу. При обновлении PHP-кода синхронизируйте `backend/` без `.env`, `vendor` и `storage`, затем выполните `docker compose -f compose.php.vps.yaml -f compose.php.vps.traefik.yaml up --build -d app scheduler` и `docker compose -f compose.php.vps.yaml exec -T app php artisan migrate --force`. Перед обновлением сохраняйте тома `step-php_mysql_data` и `step-php_php_storage`.
+
+База заявок создана заново. Из прежней PostgreSQL перенесена только учетная запись владельца с действующим bcrypt-хешем, чтобы сохранить вход в кабинет. Go-приложение остановлено; его PostgreSQL и MinIO и тома сохранены для возможного отката. Подписка MAX уже направлена на `https://step-bot.madebypavel.space/integrations/max/webhook`; повторная регистрация не требуется, пока адрес и секрет остаются прежними.
+
+## Прежняя Go-версия на VPS
 
 ## Запуск в OrbStack
 

@@ -1,0 +1,47 @@
+name: step-php
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.php
+    env_file: backend/.env
+    environment:
+      APP_ENV: local
+      APP_DEBUG: 'true'
+      APP_URL: http://localhost:8082
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: step
+      DB_USERNAME: step
+      DB_PASSWORD: step_local_only
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      MAX_WEBHOOK_SECRET: local_webhook_secret
+    ports:
+      - 127.0.0.1:8082:80
+    volumes:
+      - php_storage:/var/www/html/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: step
+      MYSQL_USER: step
+      MYSQL_PASSWORD: step_local_only
+      MYSQL_ROOT_PASSWORD: root_local_only
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'mysqladmin ping -h 127.0.0.1 -uroot -p"$${MYSQL_ROOT_PASSWORD}" --silent']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  mysql_data:
+  php_storage:
