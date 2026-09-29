@@ -30,7 +30,7 @@ unset ADMIN_INITIAL_PASSWORD
 
 ## Развёртывание на обычном Beget
 
-Для установки из Git с уже готовыми React-сборками используйте [короткую инструкцию Beget](docs/BEGET_FROM_GIT.md). Указанный там домен служит примером: для другого адреса измените `APP_URL` и URL Mini App/webhook действующего бота MAX. Подробности по настройке хостинга, подключению домена и проверкам — в [полной инструкции](docs/BEGET_SHARED_HOSTING.md).
+Для установки из Git с уже готовыми React-сборками используйте [короткую инструкцию Beget](docs/BEGET_FROM_GIT.md). Указанный там домен служит примером. Для Beget выбран новый бот `id615421905600_bot`: нужны его токен, новый webhook secret и отдельная подписка MAX. Подробности по настройке хостинга, подключению домена и проверкам — в [полной инструкции](docs/BEGET_SHARED_HOSTING.md).
 
 Схема каталога `public_html` → `public` и выбор PHP 8.3 соответствуют [инструкции Beget для Laravel](https://beget.com/ru/kb/how-to/web-apps/ustanovka-php-frejmvorkov). Версию сайта и PHP-директивы можно настроить в [панели сайтов Beget](https://beget.com/ru/kb/manual/sajty).
 
@@ -40,7 +40,7 @@ unset ADMIN_INITIAL_PASSWORD
 2. Создайте `backend/.env` по `backend/.env.example`. Укажите `APP_ENV=production`, `APP_DEBUG=false`, реальный HTTPS `APP_URL`, доступ к MySQL, `MAX_BOT_TOKEN`, публичное имя бота в `MAX_BOT_WEB_APP` (для кнопки Mini App) и случайный `MAX_WEBHOOK_SECRET`. Выполните `php artisan key:generate`, `php artisan migrate --force`, затем `php artisan owner:create ...` с временным `ADMIN_INITIAL_PASSWORD`.
 3. Настройте `public_html` как ссылку на `project/backend/public` или укажите этот каталог корнем сайта в панели. **Веб-сервер не должен отдавать `.env`, `vendor`, `storage` и исходники PHP.** Дайте PHP право записи в `backend/storage` и `backend/bootstrap/cache`.
 4. В Beget CronTab выберите тот же PHP 8.3+ CLI и поставьте запуск каждую минуту: `cd /абсолютный/путь/project/backend && /usr/local/php/cgi/8.3/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1`. Уточните путь к PHP на своём сервере; cron вызывает ограниченный `max:tick`, без фонового демона.
-5. Проверьте по HTTPS `/health/ready`, `/app/`, `/admin/`, вход владельца и тестовую заявку. После этого задайте в MAX Mini App URL `https://<домен>/app/` и webhook `https://<домен>/integrations/max/webhook` с тем же секретом. Переключение действующего домена и бота выполняется отдельно после проверки реального MAX.
+5. Проверьте по HTTPS `/health/ready`, `/app/`, `/admin/`, вход владельца и тестовую заявку. После этого у нового бота задайте Mini App URL `https://<домен>/app/` и создайте его webhook-подписку на `https://<домен>/integrations/max/webhook` с тем же секретом, что в Beget `.env`.
 
 Файлы заявок хранятся в приватном `backend/storage/app/private` и скачиваются через `/api/v1/attachments/{id}` с проверкой доступа. Callback отклика получает быстрый ответ из webhook; обычные сообщения MAX могут задержаться до ближайшего запуска cron. При обновлении кода повторите `composer install --no-dev`, `php artisan migrate --force` и очистите кэш командой `php artisan optimize:clear`; содержимое `storage` и `.env` сохраняйте.
 
