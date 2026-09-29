@@ -43,14 +43,32 @@ php artisan owner:create 'ШАГ' '<ваша_почта>' '<ваше_имя>'
 unset ADMIN_INITIAL_PASSWORD
 ```
 
-Убедитесь, что `public_html` сейчас относится именно к этому сайту. Сохраните исходный каталог и откройте наружу только Laravel `public`:
+Убедитесь, что `public_html` сейчас относится именно к этому сайту. **Сначала проверьте, где фактически лежит код:** файл `project/backend/public/index.php` должен существовать. Если проект клонирован в другое место, используйте его абсолютный путь вместо `"$(pwd)/project/backend/public"`. Для новой установки сохраните исходный каталог и откройте наружу только Laravel `public`:
 
 ```sh
 cd ~/step-bot.madebypavel.space
-mv public_html public_html.before-step
-ln -s project/backend/public public_html
+test -f project/backend/public/index.php && mv public_html public_html.before-step && ln -s "$(pwd)/project/backend/public" public_html
+readlink public_html
 ls -l public_html/.htaccess public_html/app/index.html public_html/admin/index.html
 ```
+
+Если `test` не находит файл, **не создавайте ссылку**: найдите Laravel командой `find ~ -maxdepth 6 -type f -path '*/backend/public/index.php' -print`. Относительная цель `stepology.ru/backend/public` из каталога `~/stepology.ru` неверна: она указывает на `~/stepology.ru/stepology.ru/backend/public`.
+
+Если вы **уже разместили Laravel внутри `public_html`**, а затем переименовали каталог в `public_html.before-step`, приложение теперь лежит в `public_html.before-step`. Создайте ссылку на его фактический `public`, найдя корень по файлу `artisan`:
+
+```sh
+cd ~/stepology.ru
+ARTISAN=$(find "$PWD/public_html.before-step" -maxdepth 5 -type f -name artisan -print -quit)
+if [ -n "$ARTISAN" ] && [ -f "$(dirname "$ARTISAN")/public/index.php" ]; then
+  ln -s "$(dirname "$ARTISAN")/public" public_html
+  readlink public_html
+  ls -l public_html/index.php public_html/app/index.html public_html/admin/index.html
+else
+  echo 'Не найден каталог Laravel public; проверьте структуру public_html.before-step'
+fi
+```
+
+Эта команда применима, когда `public_html` уже отсутствует, а `public_html.before-step` сохранён. Она не перемещает и не удаляет код.
 
 В панели Beget выберите PHP 8.3+ и HTTPS для сайта. Для вложений выставьте `upload_max_filesize=6M` и `post_max_size=7M` или больше.
 

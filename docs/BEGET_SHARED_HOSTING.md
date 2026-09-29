@@ -149,16 +149,18 @@ ls -ld public_html
 ls -la public_html | head
 ```
 
-Если это **новый пустой сайт**, сохраните исходный каталог под другим именем и создайте ссылку:
+Если это **новый пустой сайт**, сначала проверьте наличие кода, затем сохраните исходный каталог под другим именем и создайте ссылку по абсолютному пути:
 
 ```sh
-mv public_html public_html.before-step
-ln -s project/backend/public public_html
+test -f project/backend/public/index.php && mv public_html public_html.before-step && ln -s "$(pwd)/project/backend/public" public_html
+readlink public_html
 ls -ld public_html
 ls -la public_html/.htaccess public_html/app/index.html public_html/admin/index.html
 ```
 
-Если в `public_html` уже работает другой сайт, **не выполняйте `mv`**: создайте в панели отдельный сайт/каталог для «ШАГ» и повторите шаг в нём. Никогда не копируйте всё содержимое `backend` внутрь `public_html`. Файлы `.env`, `vendor`, `storage` и код приложения не должны открываться по HTTP.
+Если `test` не находит файл, остановитесь и найдите установленный Laravel командой `find ~ -maxdepth 6 -type f -path '*/backend/public/index.php' -print`. Цель символьной ссылки должна быть **реальным каталогом** `backend/public`: относительный путь вроде `stepology.ru/backend/public` внутри `~/stepology.ru` создаёт сломанную ссылку. Если в `public_html` уже работает другой сайт, **не выполняйте `mv`**: создайте в панели отдельный сайт/каталог для «ШАГ» и повторите шаг в нём. Никогда не копируйте всё содержимое `backend` внутрь `public_html`. Файлы `.env`, `vendor`, `storage` и код приложения не должны открываться по HTTP.
+
+Если Laravel был загружен **внутрь `public_html` до этого шага**, переименование в `public_html.before-step` перенесло туда и приложение. В этом случае найдите файл `artisan` в `public_html.before-step` и создайте ссылку на соседний `public` по [команде восстановления](BEGET_FROM_GIT.md#первый-запуск). Старый каталог не удаляйте до проверки сайта.
 
 Для файлов до 5 МБ в панели «Сайты → PHP-директивы» установите `upload_max_filesize` не меньше `6M`, `post_max_size` не меньше `7M`. Эти параметры сайт задаёт отдельно от командной строки. [Директивы PHP на Beget](https://beget.com/ru/kb/manual/sajty).
 
