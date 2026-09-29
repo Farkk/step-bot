@@ -266,7 +266,8 @@ php artisan max:tick
 | --- | --- |
 | `500` или белая страница | `storage/logs/laravel.log`, `APP_DEBUG=false`, версия PHP/расширения, `vendor`, право записи в `storage` и `bootstrap/cache`. Ошибки показывайте разработчику без `.env` и токенов. |
 | `/health/ready` → `503` | Доступ к MySQL и запись в `storage/app/private`; проверьте `DB_HOST`, имя базы и пароль. |
-| `/app/` или `/admin/` → `404` | Ссылка `public_html → project/backend/public`, наличие `public/.htaccess`, `public/app/index.html`, `public/admin/index.html`, обработка rewrite. |
+| На главной странице «Домен не прилинкован ни к одной из директорий на сервере!» | В панели Beget откройте «Сайты», выберите сайт с нужным каталогом (например, `~/stepology.ru`) и через меню сайта «Прикрепить домен» привяжите `stepology.ru`. Пока домен не привязан, веб-запросы не доходят до `public_html`, даже если ссылка на Laravel верна. После привязки выпустите SSL для домена. |
+| `/app/` или `/admin/` → `404` после привязки домена | Проверьте фактическую цель ссылки `readlink public_html`, наличие `public/.htaccess`, `public/app/index.html`, `public/admin/index.html` и обработку rewrite. |
 | В кабинете при записи `403` | `APP_URL` должен в точности совпадать с HTTPS-доменом в браузере; проверьте вход и CSRF, затем `php artisan optimize:clear`. |
 | Webhook без ответа / бот молчит | HTTPS и SSL, адрес подписки и секрет MAX, `storage/logs/laravel.log`, CronTab и `storage/logs/cron.log`. |
 | Заявка есть, пуша нет | Сначала зарегистрируйте исполнителя в новой Mini App, затем смотрите `notification_outbox.last_error`; проверьте `MAX_BOT_WEB_APP`, CA-файл и исходящее HTTPS-соединение к MAX. |
