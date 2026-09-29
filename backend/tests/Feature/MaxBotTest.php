@@ -35,8 +35,9 @@ class MaxBotTest extends TestCase
         $this->withHeader('X-Max-Bot-Api-Secret', 'secret')->postJson('/integrations/max/webhook', [
             'update_type' => 'message_callback', 'callback' => ['callback_id' => 'photo-callback', 'payload' => 'photo:'.$taskId, 'user' => ['user_id' => 12345]],
         ])->assertOk();
-        Http::assertSentCount(1);
-        $this->assertDatabaseHas('max_bot_outbox', ['kind' => 'photo', 'callback_id' => null, 'sent_at' => null]);
+        Http::assertSentCount(4);
+        $this->assertDatabaseHas('max_bot_outbox', ['kind' => 'photo', 'callback_id' => null, 'attempts' => 1]);
+        $this->assertNotNull(DB::table('max_bot_outbox')->where('kind', 'photo')->value('sent_at'));
         $this->artisan('max:tick')->assertSuccessful();
         $this->assertDatabaseHas('max_bot_outbox', ['kind' => 'photo', 'attempts' => 1]);
         Http::assertSentCount(4);
@@ -72,7 +73,7 @@ class MaxBotTest extends TestCase
         $event = ['update_type' => 'message_callback', 'callback' => ['callback_id' => 'c1', 'payload' => 'apply:'.$taskId, 'user' => ['user_id' => 12345]]];
         $this->withHeader('X-Max-Bot-Api-Secret', 'secret')->postJson('/integrations/max/webhook', $event)->assertOk();
         $this->assertDatabaseCount('applications', 1);
-        Http::assertSentCount(1);
+        Http::assertSentCount(2);
         $this->withHeader('X-Max-Bot-Api-Secret', 'secret')->postJson('/integrations/max/webhook', $event)->assertOk();
         $this->artisan('max:tick')->assertSuccessful();
         $this->assertDatabaseCount('max_webhook_inbox', 1);

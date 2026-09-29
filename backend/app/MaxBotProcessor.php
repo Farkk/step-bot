@@ -32,10 +32,10 @@ class MaxBotProcessor
         }
     }
 
-    public function tick(int $limit = 30): array
+    public function tick(int $limit = 30, int $seconds = 40): array
     {
         $counts = ['inbox' => 0, 'replies' => 0, 'notifications' => 0];
-        $deadline = microtime(true) + 40;
+        $deadline = microtime(true) + $seconds;
         foreach (['inbox' => 'processInbox', 'replies' => 'deliverReply', 'notifications' => 'deliverNotification'] as $key => $method) {
             for ($i = 0; $i < $limit; $i++) {
                 if (microtime(true) >= $deadline || ! $this->$method()) {

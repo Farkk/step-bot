@@ -1,6 +1,6 @@
 # ШАГ — кабинет заказчика, бот и Mini App
 
-Серверная версия находится в `backend/`: Laravel 13, MySQL, бот MAX с обработкой очереди через cron. React Mini App и кабинет остались прежними. На действующем VPS и домене работает PHP-версия; прежний Go-контейнер остановлен. Текущий статус переноса описан в [руководстве проекта](docs/PROJECT_GUIDE.md).
+Серверная версия находится в `backend/`: Laravel 13, MySQL, бот MAX с отправкой уведомлений сразу после ответа API и повторными попытками через cron. React Mini App и кабинет остались прежними. На действующем VPS и домене работает PHP-версия; прежний Go-контейнер остановлен. Текущий статус переноса описан в [руководстве проекта](docs/PROJECT_GUIDE.md).
 
 Для дальнейшей разработки используйте [skill проекта](skills/step-project/SKILL.md) и [живую документацию реализации](docs/PROJECT_GUIDE.md). Визуальные правила находятся в [дизайн-системе](DESIGN_SYSTEM.md).
 
@@ -39,10 +39,10 @@ unset ADMIN_INITIAL_PASSWORD
 1. Клонируйте основную ветку GitHub в каталог сайта, вне `public_html`. Для SSH-сессии Beget можно выбрать PHP 8.3 через `export PATH=/usr/local/php/cgi/8.3/bin/:$PATH`. В `project/backend` установите PHP-зависимости командой `composer install --no-dev --prefer-dist --optimize-autoloader`.
 2. Создайте `backend/.env` по `backend/.env.example`. Укажите `APP_ENV=production`, `APP_DEBUG=false`, реальный HTTPS `APP_URL`, доступ к MySQL, `MAX_BOT_TOKEN`, публичное имя бота в `MAX_BOT_WEB_APP` (для кнопки Mini App) и случайный `MAX_WEBHOOK_SECRET`. Выполните `php artisan key:generate`, `php artisan migrate --force`, затем `php artisan owner:create ...` с временным `ADMIN_INITIAL_PASSWORD`.
 3. Настройте `public_html` как ссылку на `project/backend/public` или укажите этот каталог корнем сайта в панели. **Веб-сервер не должен отдавать `.env`, `vendor`, `storage` и исходники PHP.** Дайте PHP право записи в `backend/storage` и `backend/bootstrap/cache`.
-4. В Beget CronTab выберите тот же PHP 8.3+ CLI и поставьте запуск каждую минуту: `cd /абсолютный/путь/project/backend && /usr/local/php/cgi/8.3/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1`. Уточните путь к PHP на своём сервере; cron вызывает ограниченный `max:tick`, без фонового демона.
+4. В Beget CronTab выберите тот же PHP 8.3+ CLI и поставьте запуск каждую минуту: `cd /абсолютный/путь/project/backend && /usr/local/php/cgi/8.3/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1`. Уточните путь к PHP на своём сервере; cron повторяет неудачные отправки и подбирает оставшуюся очередь; обычные уведомления отправляются после ответа на действие без ожидания минуты.
 5. Проверьте по HTTPS `/health/ready`, `/app/`, `/admin/`, вход владельца и тестовую заявку. После этого у нового бота задайте Mini App URL `https://<домен>/app/` и создайте его webhook-подписку на `https://<домен>/integrations/max/webhook` с тем же секретом, что в Beget `.env`.
 
-Файлы заявок хранятся в приватном `backend/storage/app/private` и скачиваются через `/api/v1/attachments/{id}` с проверкой доступа. Callback отклика получает быстрый ответ из webhook; обычные сообщения MAX могут задержаться до ближайшего запуска cron. При обновлении кода повторите `composer install --no-dev`, `php artisan migrate --force` и очистите кэш командой `php artisan optimize:clear`; содержимое `storage` и `.env` сохраняйте.
+Файлы заявок хранятся в приватном `backend/storage/app/private` и скачиваются через `/api/v1/attachments/{id}` с проверкой доступа. После успешных изменений через API и входящего webhook Laravel запускает обработку MAX после отправки HTTP-ответа. Большая очередь или сбой MAX могут задержать оставшиеся сообщения до cron. При обновлении кода повторите `composer install --no-dev`, `php artisan migrate --force` и очистите кэш командой `php artisan optimize:clear`; содержимое `storage` и `.env` сохраняйте.
 
 ## Действующая PHP-версия на VPS
 

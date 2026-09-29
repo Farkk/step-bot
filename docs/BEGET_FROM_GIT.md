@@ -84,6 +84,8 @@ cd /home/<логин>/<каталог-сайта>/project/backend && /usr/local/
 
 ## Обновление из Git
 
+После обновления кода уведомления MAX отправляются сразу после HTTP-ответа на действие. Cron с интервалом **одна минута** остаётся для повторных попыток и остатка очереди. Для уже настроенного сайта `stepology.ru`, где репозиторий лежит в `public_html.before-step`, используйте каталог `/home/b/bsexecrq/stepology.ru/public_html.before-step` вместо примерного `~/step-bot.madebypavel.space/project`.
+
 Сохраняйте серверные `.env`, `APP_KEY`, MySQL и `storage/app/private`. Из SSH:
 
 ```sh
