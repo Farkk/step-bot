@@ -1,6 +1,6 @@
 # Быстрый запуск «ШАГ» на обычном Beget из Git
 
-В Git уже лежат Laravel, миграции, `composer.lock` и готовые сборки React для Mini App и кабинета. На Beget не нужны Node.js, Go, Docker и сборка фронтенда. Понадобятся PHP 8.3+ для сайта и SSH, MySQL 8, SSH, Composer 2, HTTPS и CronTab. В панели Beget создайте сайт для нужного домена и **пустую** базу MySQL. Ниже каталог сайта для примера — `~/step-bot.madebypavel.space`; если Beget создал другой, подставьте его.
+В Git уже лежат Laravel, миграции, `composer.lock` и готовые сборки React для Mini App и кабинета. На Beget не нужны Node.js, Go, Docker и сборка фронтенда. Понадобятся PHP 8.3+ для сайта и SSH, MySQL 8, Composer 2, HTTPS и CronTab. В панели Beget создайте сайт для **своего будущего домена** и пустую базу MySQL. Ниже каталог сайта для примера — `~/step-bot.madebypavel.space`; если Beget создал другой, подставьте его во всех командах. Адрес домена можно выбрать позже, перед настройкой `.env` и MAX.
 
 ## Первый запуск
 
@@ -17,7 +17,7 @@ chmod 600 .env
 nano .env
 ```
 
-В `.env` укажите `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://step-bot.madebypavel.space`, параметры новой MySQL (`DB_HOST=localhost`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`), а также `MAX_BOT_TOKEN`, `MAX_BOT_WEB_APP=se14459976_bot`, `MAX_WEBHOOK_SECRET`. Токен и секрет действующего бота возьмите из защищённого `backend/.env` на VPS (`/opt/apps/step-bot-php/backend/.env`); не публикуйте их и не копируйте весь файл, потому что там настройки другой базы. `APP_KEY` оставьте пустым до команды ниже.
+В `.env` укажите `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://<ваш-домен>` (без пути `/app/`), параметры новой MySQL (`DB_HOST=localhost`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`), а также `MAX_BOT_TOKEN`, `MAX_BOT_WEB_APP=se14459976_bot`, `MAX_WEBHOOK_SECRET`. Токен и секрет действующего бота возьмите из защищённого `backend/.env` на VPS (`/opt/apps/step-bot-php/backend/.env`); не публикуйте их и не копируйте весь файл, потому что там настройки другой базы. `APP_KEY` оставьте пустым до команды ниже.
 
 Затем в том же каталоге:
 
@@ -58,7 +58,7 @@ ls -l public_html/.htaccess public_html/app/index.html public_html/admin/index.h
 cd /home/<логин>/step-bot.madebypavel.space/project/backend && /usr/local/php/cgi/8.3/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1
 ```
 
-После перевода DNS домена на Beget проверьте по HTTPS `/health/ready`, `/app/`, `/admin/`, вход владельца и публикацию тестовой заявки. У действующего бота URL webhook остаётся `/integrations/max/webhook`; при прежнем `MAX_WEBHOOK_SECRET` повторная подписка не нужна. Новая база пуста, поэтому исполнитель должен заново сохранить профиль в Mini App, прежде чем получит пуш. Порядок переключения DNS, проверки MAX и сохранения VPS для возврата описан в [подробной инструкции](BEGET_SHARED_HOSTING.md#7-переключить-домен-с-vps-на-beget).
+После подключения выбранного домена к Beget и выпуска SSL проверьте по HTTPS `/health/ready`, `/app/`, `/admin/`, вход владельца и публикацию тестовой заявки. Если домен **тот же, что на VPS**, действующая подписка MAX на webhook может остаться при сохранении её секрета. Если домен **другой**, задайте у бота новый URL Mini App `https://<ваш-домен>/app/` и новую подписку на webhook `https://<ваш-домен>/integrations/max/webhook` с тем же `MAX_WEBHOOK_SECRET`; после проверки уберите старую подписку. Новая база пуста, поэтому исполнитель должен заново сохранить профиль в Mini App, прежде чем получит пуш. Порядок подключения домена, проверки MAX и сохранения VPS для возврата описан в [подробной инструкции](BEGET_SHARED_HOSTING.md#7-подключить-домен-и-переключить-max).
 
 ## Обновление из Git
 

@@ -30,7 +30,7 @@ unset ADMIN_INITIAL_PASSWORD
 
 ## Развёртывание на обычном Beget
 
-Для установки из Git с уже готовыми React-сборками используйте [короткую инструкцию Beget](docs/BEGET_FROM_GIT.md). Подробности по настройке хостинга, переключению домена и проверкам — в [полной инструкции](docs/BEGET_SHARED_HOSTING.md).
+Для установки из Git с уже готовыми React-сборками используйте [короткую инструкцию Beget](docs/BEGET_FROM_GIT.md). Указанный там домен служит примером: для другого адреса измените `APP_URL` и URL Mini App/webhook действующего бота MAX. Подробности по настройке хостинга, подключению домена и проверкам — в [полной инструкции](docs/BEGET_SHARED_HOSTING.md).
 
 Схема каталога `public_html` → `public` и выбор PHP 8.3 соответствуют [инструкции Beget для Laravel](https://beget.com/ru/kb/how-to/web-apps/ustanovka-php-frejmvorkov). Версию сайта и PHP-директивы можно настроить в [панели сайтов Beget](https://beget.com/ru/kb/manual/sajty).
 
